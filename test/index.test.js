@@ -15,7 +15,7 @@ describe('songToHtml', () => {
 
       expect(result.html).toContain('<article class="s2h-song">');
       expect(result.html).toContain('<section class="s2h-page"');
-      expect(result.html).toContain('<section class="s2h-meta">');
+      expect(result.html).toContain('<section class="s2h-title">');
       expect(result.html).toContain('<section class="s2h-chords">');
       expect(result.html).toContain('<section class="s2h-section');
       expect(result.html).toContain('</article>');
@@ -31,17 +31,35 @@ describe('songToHtml', () => {
       expect(result.song.authors).toEqual(['John Newton']);
     });
 
-    test('includes metadata in HTML output', () => {
+    test('extracts title correctly', () => {
       const source = fixture('simple-song.txt');
       const result = songToHtml(source);
 
-      expect(result.html).toContain('<strong>Key:</strong> C');
-      expect(result.html).toContain('<strong>Tempo:</strong> 72');
-      expect(result.html).toContain('<strong>Time:</strong> 3/4');
-      expect(result.html).toContain('<strong>Author:</strong> John Newton');
+      expect(result.song.title).toBe('Amazing Grace');
     });
 
-    test('uses "Authors" label for multiple authors', () => {
+    test('includes title block in HTML output by default', () => {
+      const source = fixture('simple-song.txt');
+      const result = songToHtml(source);
+
+      expect(result.html).toContain('<h1 class="s2h-title-name">Amazing Grace</h1>');
+      expect(result.html).toContain('s2h-title-key');
+      expect(result.html).toContain('s2h-title-tempo');
+      expect(result.html).toContain('s2h-title-time');
+      expect(result.html).toContain('s2h-title-authors');
+    });
+
+    test('includes metadata in title block', () => {
+      const source = fixture('simple-song.txt');
+      const result = songToHtml(source);
+
+      expect(result.html).toContain('<span class="s2h-title-label">Key:</span> C');
+      expect(result.html).toContain('<span class="s2h-title-label">Tempo:</span> 72');
+      expect(result.html).toContain('<span class="s2h-title-label">Time:</span> 3/4');
+      expect(result.html).toContain('<span class="s2h-title-label">Author:</span> John Newton');
+    });
+
+    test('uses "Authors" label for multiple authors in title block', () => {
       const source = `Multi Author [C]
   author: John Doe, Jane Doe
   verse: C G
@@ -51,7 +69,19 @@ Sections:
     ^Hello ^world`;
       const result = songToHtml(source);
 
-      expect(result.html).toContain('<strong>Authors:</strong> John Doe, Jane Doe');
+      expect(result.html).toContain('<span class="s2h-title-label">Authors:</span> John Doe, Jane Doe');
+    });
+
+    test('shows legacy meta section when showTitle is false', () => {
+      const source = fixture('simple-song.txt');
+      const result = songToHtml(source, { showTitle: false });
+
+      expect(result.html).toContain('<section class="s2h-meta">');
+      expect(result.html).toContain('<strong>Key:</strong> C');
+      expect(result.html).toContain('<strong>Tempo:</strong> 72');
+      expect(result.html).toContain('<strong>Time:</strong> 3/4');
+      expect(result.html).toContain('<strong>Author:</strong> John Newton');
+      expect(result.html).not.toContain('<section class="s2h-title">');
     });
   });
 
@@ -460,5 +490,190 @@ Sections:
     // In key of G: 1=G, 2=A, 3=B, 4=C, 5=D, 6=E
     expect(result.html).toContain('G-GAB');
     expect(result.html).toContain('C-CDE');
+  });
+});
+
+describe('display options', () => {
+  describe('showChords option', () => {
+    test('shows chord chart by default', () => {
+      const source = `Test Song [C]
+  verse: C G Am F
+
+Sections:
+  Verse 1:
+    ^One ^two ^three ^four`;
+      const result = songToHtml(source);
+
+      expect(result.html).toContain('<section class="s2h-chords">');
+      expect(result.html).toContain('<h3 class="s2h-chords-title">Chords</h3>');
+    });
+
+    test('hides chord chart when showChords is false', () => {
+      const source = `Test Song [C]
+  verse: C G Am F
+
+Sections:
+  Verse 1:
+    ^One ^two ^three ^four`;
+      const result = songToHtml(source, { showChords: false });
+
+      expect(result.html).not.toContain('<section class="s2h-chords">');
+      expect(result.html).not.toContain('<h3 class="s2h-chords-title">Chords</h3>');
+    });
+
+    test('still includes inline chords when showChords is false', () => {
+      const source = `Test Song [C]
+  verse: C G
+
+Sections:
+  Verse 1:
+    ^One ^two`;
+      const result = songToHtml(source, { showChords: false });
+
+      // Inline chords in lyrics should still be present
+      expect(result.html).toContain('<sup class="s2h-chord">');
+    });
+  });
+
+  describe('showTitle option', () => {
+    test('shows title block by default', () => {
+      const source = `Test Song [C]
+  author: Test Author
+  tempo: 120
+  time: 4/4
+  verse: C G
+
+Sections:
+  Verse 1:
+    ^One ^two`;
+      const result = songToHtml(source);
+
+      expect(result.html).toContain('<section class="s2h-title">');
+      expect(result.html).toContain('<h1 class="s2h-title-name">Test Song</h1>');
+    });
+
+    test('hides title block when showTitle is false', () => {
+      const source = `Test Song [C]
+  author: Test Author
+  verse: C G
+
+Sections:
+  Verse 1:
+    ^One ^two`;
+      const result = songToHtml(source, { showTitle: false });
+
+      expect(result.html).not.toContain('<section class="s2h-title">');
+      expect(result.html).not.toContain('<h1 class="s2h-title-name">');
+    });
+
+    test('shows legacy meta section when showTitle is false', () => {
+      const source = `Test Song [C]
+  author: Test Author
+  tempo: 120
+  time: 4/4
+  verse: C G
+
+Sections:
+  Verse 1:
+    ^One ^two`;
+      const result = songToHtml(source, { showTitle: false });
+
+      expect(result.html).toContain('<section class="s2h-meta">');
+      expect(result.html).toContain('<strong>Key:</strong> C');
+      expect(result.html).toContain('<strong>Tempo:</strong> 120');
+      expect(result.html).toContain('<strong>Time:</strong> 4/4');
+      expect(result.html).toContain('<strong>Author:</strong> Test Author');
+    });
+  });
+
+  describe('combined options', () => {
+    test('can hide both title and chords', () => {
+      const source = `Test Song [C]
+  author: Test Author
+  verse: C G
+
+Sections:
+  Verse 1:
+    ^One ^two`;
+      const result = songToHtml(source, { showTitle: false, showChords: false });
+
+      expect(result.html).not.toContain('<section class="s2h-title">');
+      expect(result.html).not.toContain('<section class="s2h-chords">');
+      // Should still show legacy meta
+      expect(result.html).toContain('<section class="s2h-meta">');
+    });
+
+    test('can use arrangementName with other options', () => {
+      const source = `Test Song [C]
+  verse: C G
+  chorus: Am F
+
+Sections:
+  Verse 1:
+    ^One ^two
+  Chorus:
+    ^La ^la
+
+Arrangements:
+  Short:
+    Verse 1
+  Full:
+    Verse 1
+    Chorus`;
+      const result = songToHtml(source, { arrangementName: 'Short', showChords: false });
+
+      expect(result.html).toContain('Verse 1');
+      expect(result.html).not.toContain('Chorus');
+      expect(result.html).not.toContain('<section class="s2h-chords">');
+    });
+  });
+
+  describe('backwards compatibility', () => {
+    test('accepts string argument for arrangement name', () => {
+      const source = `Test Song [C]
+  verse: C G
+  chorus: Am F
+
+Sections:
+  Verse 1:
+    ^One ^two
+  Chorus:
+    ^La ^la
+
+Arrangements:
+  Short:
+    Verse 1
+  Full:
+    Verse 1
+    Chorus`;
+      const result = songToHtml(source, 'Short');
+
+      expect(result.html).toContain('Verse 1');
+      expect(result.html).not.toContain('Chorus');
+    });
+  });
+
+  describe('title block styling', () => {
+    test('includes style-friendly class names', () => {
+      const source = `Test Song [C]
+  author: Test Author
+  tempo: 120
+  time: 4/4
+  verse: C G
+
+Sections:
+  Verse 1:
+    ^One ^two`;
+      const result = songToHtml(source);
+
+      expect(result.html).toContain('s2h-title-name');
+      expect(result.html).toContain('s2h-title-authors');
+      expect(result.html).toContain('s2h-title-meta');
+      expect(result.html).toContain('s2h-title-key');
+      expect(result.html).toContain('s2h-title-tempo');
+      expect(result.html).toContain('s2h-title-time');
+      expect(result.html).toContain('s2h-title-label');
+      expect(result.html).toContain('s2h-title-separator');
+    });
   });
 });

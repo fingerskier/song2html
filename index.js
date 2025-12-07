@@ -1,10 +1,29 @@
 /**
+ * @typedef {Object} SongToHtmlOptions
+ * @property {string} [arrangementName=''] - Name of the arrangement to use. Defaults to the first available arrangement.
+ * @property {boolean} [showChords=true] - Whether to show the chord chart section.
+ * @property {boolean} [showTitle=true] - Whether to show the title block with song title, author, key, tempo, and time.
+ */
+
+/**
  * Converts a song source file into HTML markup with chord notation and lyrics.
  * @param {string} source - The raw song source text containing metadata, chords, lyrics, and arrangements.
- * @param {string} [arrangementName=''] - Optional name of the arrangement to use. Defaults to the first available arrangement.
- * @returns {{ html: string, arrangements: string[], song: { key: string|null, tempo: number|null, authors: string[], time: string|null } }} An object containing the generated HTML, available arrangement names, and song metadata.
+ * @param {string|SongToHtmlOptions} [options=''] - Either an arrangement name (string) for backwards compatibility, or an options object.
+ * @returns {{ html: string, arrangements: string[], song: { key: string|null, tempo: number|null, authors: string[], time: string|null, title: string } }} An object containing the generated HTML, available arrangement names, and song metadata.
  */
-export default function songToHtml(source, arrangementName = '') {
+export default function songToHtml(source, options = '') {
+  // Handle backwards compatibility: options can be a string (arrangementName) or an object
+  let arrangementName = ''
+  let showChords = true
+  let showTitle = true
+
+  if (typeof options === 'string') {
+    arrangementName = options
+  } else if (typeof options === 'object' && options !== null) {
+    arrangementName = options.arrangementName ?? ''
+    showChords = options.showChords ?? true
+    showTitle = options.showTitle ?? true
+  }
   const lines = source.replace(/\r\n?/g, '\n').split('\n')
   let idx = 0
 
@@ -12,6 +31,8 @@ export default function songToHtml(source, arrangementName = '') {
   const titleLine = (lines[idx] ?? '').trim()
   const keyMatch = titleLine.match(/\[([A-Ga-g][♯#♭b]?m?)]$/)
   let songKey = keyMatch ? normalizeKey(keyMatch[1]) : null // e.g. "C", "F#", "Am"
+  // Extract clean title without key brackets
+  const songTitle = keyMatch ? titleLine.slice(0, -keyMatch[0].length).trim() : titleLine
   idx++
 
   // 2. Helpers for number→chord --------------------------------------------
@@ -312,35 +333,61 @@ export default function songToHtml(source, arrangementName = '') {
     currentWeight = 0
   }
 
+  // Title block section (controlled by showTitle option)
+  if (showTitle && songTitle) {
+    const titleLines = []
+    titleLines.push(`<h1 class="s2h-title-name">${esc(songTitle)}</h1>`)
+    if (authors.length) {
+      const label = authors.length > 1 ? 'Authors' : 'Author'
+      titleLines.push(`<p class="s2h-title-authors"><span class="s2h-title-label">${label}:</span> ${esc(authors.join(', '))}</p>`)
+    }
+    const metaDetails = []
+    if (songKey) metaDetails.push(`<span class="s2h-title-key"><span class="s2h-title-label">Key:</span> ${esc(songKey)}</span>`)
+    if (tempo !== null) metaDetails.push(`<span class="s2h-title-tempo"><span class="s2h-title-label">Tempo:</span> ${tempo}</span>`)
+    if (timeSig) metaDetails.push(`<span class="s2h-title-time"><span class="s2h-title-label">Time:</span> ${esc(timeSig)}</span>`)
+    if (metaDetails.length) {
+      titleLines.push(`<p class="s2h-title-meta">${metaDetails.join(' <span class="s2h-title-separator">|</span> ')}</p>`)
+    }
+    const titleSection = ['<section class="s2h-title">', ...titleLines, '</section>']
+    const titleWeight = 2 + (authors.length ? 1 : 0) + (metaDetails.length ? 1 : 0)
+    appendToPage(titleSection.join('\n'), titleWeight)
+  }
+
+  // Legacy meta section (for backwards compatibility - only shown if showTitle is false)
   const metaLines = []
-  if (songKey) metaLines.push(`<p class="s2h-meta-key"><strong>Key:</strong> ${esc(songKey)}</p>`)
-  if (tempo !== null) metaLines.push(`<p class="s2h-meta-tempo"><strong>Tempo:</strong> ${tempo}</p>`)
-  if (timeSig) metaLines.push(`<p class="s2h-meta-time"><strong>Time:</strong> ${esc(timeSig)}</p>`)
-  if (authors.length) {
-    const label = authors.length > 1 ? 'Authors' : 'Author'
-    metaLines.push(`<p class="s2h-meta-authors"><strong>${label}:</strong> ${esc(authors.join(', '))}</p>`)
+  if (!showTitle) {
+    if (songKey) metaLines.push(`<p class="s2h-meta-key"><strong>Key:</strong> ${esc(songKey)}</p>`)
+    if (tempo !== null) metaLines.push(`<p class="s2h-meta-tempo"><strong>Tempo:</strong> ${tempo}</p>`)
+    if (timeSig) metaLines.push(`<p class="s2h-meta-time"><strong>Time:</strong> ${esc(timeSig)}</p>`)
+    if (authors.length) {
+      const label = authors.length > 1 ? 'Authors' : 'Author'
+      metaLines.push(`<p class="s2h-meta-authors"><strong>${label}:</strong> ${esc(authors.join(', '))}</p>`)
+    }
   }
   if (metaLines.length) {
     const metaSection = ['<section class="s2h-meta">', ...metaLines, '</section>']
     appendToPage(metaSection.join('\n'), metaLines.length * LINE_WEIGHTS.metaLine)
   }
 
-  const chordSection = ['<section class="s2h-chords"><h3 class="s2h-chords-title">Chords</h3>']
-  let chordParagraphCount = 0
-  chosenArr.forEach((sec) => {
-    const display = chordDisplay[sectionType(sec)] || []
-    if (!display.length) return
-    let html = `<span class="s2h-chord-section-label">${esc(sec)}</span> ` + spanLine(display[0])
-    for (let i = 1; i < display.length; i++) {
-      html += '<br class="s2h-line-break"/>' + spanLine(display[i])
-    }
-    chordSection.push(`<p class="s2h-chord-line">${html}</p>`)
-    chordParagraphCount++
-  })
-  chordSection.push('</section>')
-  const chordWeight =
-    LINE_WEIGHTS.chordsHeading + chordParagraphCount * LINE_WEIGHTS.chordParagraph
-  appendToPage(chordSection.join('\n'), chordWeight)
+  // Chord chart section (controlled by showChords option)
+  if (showChords) {
+    const chordSection = ['<section class="s2h-chords"><h3 class="s2h-chords-title">Chords</h3>']
+    let chordParagraphCount = 0
+    chosenArr.forEach((sec) => {
+      const display = chordDisplay[sectionType(sec)] || []
+      if (!display.length) return
+      let html = `<span class="s2h-chord-section-label">${esc(sec)}</span> ` + spanLine(display[0])
+      for (let i = 1; i < display.length; i++) {
+        html += '<br class="s2h-line-break"/>' + spanLine(display[i])
+      }
+      chordSection.push(`<p class="s2h-chord-line">${html}</p>`)
+      chordParagraphCount++
+    })
+    chordSection.push('</section>')
+    const chordWeight =
+      LINE_WEIGHTS.chordsHeading + chordParagraphCount * LINE_WEIGHTS.chordParagraph
+    appendToPage(chordSection.join('\n'), chordWeight)
+  }
 
   chosenArr.forEach((sec) => {
     const sectionClass = `s2h-section-${sec.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
@@ -400,7 +447,7 @@ export default function songToHtml(source, arrangementName = '') {
 
   const out = ['<article class="s2h-song">', pages.join('\n'), '</article>']
 
-  const song = { key: songKey, tempo, authors, time: timeSig }
+  const song = { title: songTitle, key: songKey, tempo, authors, time: timeSig }
   return { html: out.join('\n'), arrangements: Object.keys(arrangements), song }
 
   // helper -------------------------------------------------------------
