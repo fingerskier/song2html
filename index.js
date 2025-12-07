@@ -1,15 +1,8 @@
-// SongToHtml.js – convert chord-lyric source (numeric or named) to HTML + arrangements
-// Author: ChatGPT 2025-05-24 (rev-34)
-//
-// rev-34 (Nashville-number ↔ key translation)
-//   - Reads a key in brackets on the title line, e.g. `Amazing Grace [D]`.
-//   - Numeric chords 1-7 (including bass-notes such as `1/4`) are translated
-//     to diatonic chords in that key. Quality follows the major scale pattern:
-//       1 maj, 2 min, 3 min, 4 maj, 5 maj, 6 min, 7° (diminished).
-//   - Non-numeric chords and accidentals remain untouched. Fret-glyph support
-//     and all earlier fixes retained.
-// ---------------------------------------------------------------------------
-
+/**
+ * Parses a song source file and extracts section names and arrangements.
+ * @param {string} source - The raw song source text.
+ * @returns {{ sections: string[], arrangements: Object.<string, string[]> }} An object containing section names and arrangement mappings.
+ */
 export function parseSong(source) {
   const lines = source.replace(/\r\n?/g, '\n').split('\n')
   let idx = 0
@@ -58,6 +51,13 @@ export function parseSong(source) {
   return { sections, arrangements }
 }
 
+
+/**
+ * Converts a song source file into HTML markup with chord notation and lyrics.
+ * @param {string} source - The raw song source text containing metadata, chords, lyrics, and arrangements.
+ * @param {string} [arrangementName=''] - Optional name of the arrangement to use. Defaults to the first available arrangement.
+ * @returns {{ html: string, arrangements: string[], song: { key: string|null, tempo: number|null, authors: string[], time: string|null } }} An object containing the generated HTML, available arrangement names, and song metadata.
+ */
 export default function songToHtml(source, arrangementName = '') {
   const lines = source.replace(/\r\n?/g, '\n').split('\n')
   let idx = 0
@@ -75,10 +75,20 @@ export default function songToHtml(source, arrangementName = '') {
   const majorIntervals = [0, 2, 4, 5, 7, 9, 11]
   const qualities = ['', 'm', 'm', '', '', 'm', 'dim']
 
+  /**
+   * Normalizes a musical key by converting Unicode sharp/flat symbols to ASCII.
+   * @param {string} key - The key string (e.g., "F♯", "B♭m").
+   * @returns {string} The normalized key with # and b characters.
+   */
   function normalizeKey(key) {
     return key.replace(/♯/g, '#').replace(/♭/g, 'b')
   }
 
+  /**
+   * Converts a note name to its semitone index (0-11).
+   * @param {string} note - The note name (e.g., "C", "F#", "Bb").
+   * @returns {number} The semitone index where C=0, C#=1, ..., B=11.
+   */
   function semitone(note) {
     const up = note.toUpperCase()
     let index = chromatic.indexOf(up)
@@ -88,6 +98,11 @@ export default function songToHtml(source, arrangementName = '') {
     return alt ? chromatic.indexOf(alt) : 0
   }
 
+  /**
+   * Converts a Nashville Number scale degree to a chord name.
+   * @param {number} num - The scale degree (1-7).
+   * @returns {string} The chord name with quality (e.g., "C", "Dm", "G").
+   */
   function degreeToChord(num) {
     if (!songKey) return String(num) // no key ⇒ leave numeric
     const deg = (num - 1) % 7
@@ -99,7 +114,11 @@ export default function songToHtml(source, arrangementName = '') {
     return root + qualities[deg]
   }
 
-  // Convert scale degree to just the note name (no quality) relative to key
+  /**
+   * Converts a scale degree to just the note name (no chord quality) relative to the song key.
+   * @param {number} num - The scale degree (1-7).
+   * @returns {string} The note name (e.g., "C", "D", "E").
+   */
   function degreeToNote(num) {
     if (!songKey) return String(num)
     const deg = (num - 1) % 7
@@ -111,9 +130,15 @@ export default function songToHtml(source, arrangementName = '') {
     return root
   }
 
-  // Convert interval number to note relative to a chord root (for treble chords)
-  // e.g., interval 3 from F = A (major 3rd)
-  const chordIntervals = [0, 0, 2, 4, 5, 7, 9, 11] // 1=unison, 2=M2, 3=M3, 4=P4, 5=P5, 6=M6, 7=M7
+  // Interval semitones: 1=unison, 2=M2, 3=M3, 4=P4, 5=P5, 6=M6, 7=M7
+  const chordIntervals = [0, 0, 2, 4, 5, 7, 9, 11]
+
+  /**
+   * Converts an interval number to a note name relative to a chord root (for treble chords).
+   * @param {string} chordRoot - The root note of the chord (e.g., "F", "C#").
+   * @param {number} interval - The interval number (1-7, e.g., 3 for major 3rd).
+   * @returns {string} The resulting note name (e.g., interval 3 from F = "A").
+   */
   function intervalToNote(chordRoot, interval) {
     const rootSemi = semitone(chordRoot)
     const noteSemi = (rootSemi + chordIntervals[interval % 8]) % 12
@@ -124,6 +149,12 @@ export default function songToHtml(source, arrangementName = '') {
     return note
   }
 
+  /**
+   * Translates a chord token from Nashville Number notation to standard chord names.
+   * Handles chord melodies (G-BCD), treble chords (F\D), bass slash chords (1/4), and plain numbers.
+   * @param {string} tok - The chord token to translate.
+   * @returns {string} The translated chord token with standard note names.
+   */
   function translateToken(tok) {
     // Handle chord melody: G-BCD or G-671 (melody notes relative to key)
     const melodyMatch = tok.match(/^([A-Ga-g][♯#♭b]?m?|[1-7])-([A-Ga-g0-9♯#♭b]+)(.*)$/)
@@ -169,6 +200,12 @@ export default function songToHtml(source, arrangementName = '') {
 
   // 3. Fret glyphs -----------------------------------------------------------
   const FRET = ['', '⠂', '⠅', '⠇', '⠏', '⠗', '⠛', '⠞', '⠟', '⠥', '⠦', '⠧', '⠨', '⠩']
+
+  /**
+   * Formats a chord by replacing fret indicators with Braille glyphs and translating the token.
+   * @param {string} chord - The chord string, possibly with fret notation (e.g., "G|5").
+   * @returns {string} The formatted chord with fret glyphs and translated notation.
+   */
   const fmtChord = (chord) => {
     const base = chord.replace(/\|(\d{1,2})$/, (_, n) => FRET[+n] || n)
     return translateToken(base)
@@ -420,6 +457,12 @@ export default function songToHtml(source, arrangementName = '') {
   return { html: out.join('\n'), arrangements: Object.keys(arrangements), song }
 
   // helper -------------------------------------------------------------
+
+  /**
+   * Converts a space-separated chord string into HTML spans.
+   * @param {string} str - Space-separated chord tokens.
+   * @returns {string} HTML string with each chord wrapped in a span.
+   */
   function spanLine(str) {
     return str
       .split(/\s+/)
@@ -428,6 +471,11 @@ export default function songToHtml(source, arrangementName = '') {
       .join(' ')
   }
 
+  /**
+   * Escapes HTML special characters in a string.
+   * @param {*} value - The value to escape (will be converted to string).
+   * @returns {string} The HTML-escaped string.
+   */
   function esc(value) {
     const map = {
       '&': '&amp;',
@@ -439,10 +487,21 @@ export default function songToHtml(source, arrangementName = '') {
     return String(value).replace(/[&<>"']/g, (ch) => map[ch] ?? ch)
   }
 
+  /**
+   * Extracts the base section type from a section name (e.g., "Verse 1" -> "verse").
+   * @param {string} sec - The section name.
+   * @returns {string} The lowercase base section type.
+   */
   function sectionType(sec) {
     return sec.split(/\s+/)[0].toLowerCase()
   }
 
+  /**
+   * Processes a lyric line, replacing caret (^) markers with injected chord HTML.
+   * @param {string} line - The lyric line with ^ markers for chord placement.
+   * @param {function(): string} inject - Callback that returns the HTML to inject at each ^ marker.
+   * @returns {string} The processed HTML string with chords injected.
+   */
   function processLyric(line, inject) {
     let output = ''
     let last = 0
@@ -455,6 +514,11 @@ export default function songToHtml(source, arrangementName = '') {
     return output + esc(line.slice(last))
   }
 
+  /**
+   * Expands a chord progression string, handling parenthesized groups and repeat notation (xN).
+   * @param {string} exp - The chord progression expression (e.g., "(1 4) x2 5").
+   * @returns {string[]} Array of expanded chord tokens.
+   */
   function expandProg(exp) {
     const tokens = exp.split(/\s+/).filter(Boolean)
     const out = []

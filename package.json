@@ -1,7 +1,7 @@
 {
   "name": "song2html",
-  "version": "1.0.0",
-  "description": "Convert chord-lyric source files to formatted HTML for displaying song charts",
+  "version": "2025.12.7",
+  "description": "Convert chord-lyric source text-files to formatted HTML for rendering song charts",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -15,6 +15,6 @@
     "music",
     "nashville-number"
   ],
-  "author": "Matt Currier",
+  "author": "fingerskier",
   "license": "MIT"
 }
