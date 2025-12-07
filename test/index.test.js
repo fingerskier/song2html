@@ -243,9 +243,16 @@ Sections:
       const source = fixture('special-characters.txt');
       const result = songToHtml(source);
 
-      // BUG NOTE: The esc() function has a malformed regex that doesn't
-      // properly escape single quotes. This test documents current behavior.
       expect(result.html).toContain('&amp;');
+    });
+
+    test('escapes single quotes correctly', () => {
+      const source = fixture('special-characters.txt');
+      const result = songToHtml(source);
+
+      // Single quotes should be escaped as &#039;
+      expect(result.html).toContain('O&#039;Brien');
+      expect(result.html).toContain('More&#039;s');
     });
   });
 
@@ -367,13 +374,17 @@ describe('edge cases', () => {
     expect(result.html).toContain('<article class="song">');
   });
 
-  test('BUG: key regex does not match minor keys in brackets', () => {
-    // This documents a bug: [Am] in the title is not recognized as key "Am"
-    // The regex /\[(\w[♯#♭b]?)]/ only matches single letter + optional sharp/flat
+  test('key regex matches minor keys in brackets', () => {
+    // [Am] in the title is now recognized as key "Am"
     const result = songToHtml('Song In Minor [Am]\n');
 
-    // This SHOULD be 'Am' but is null due to the regex limitation
-    expect(result.song.key).toBeNull();
+    expect(result.song.key).toBe('Am');
+  });
+
+  test('key regex matches various minor keys', () => {
+    expect(songToHtml('Test [Dm]\n').song.key).toBe('Dm');
+    expect(songToHtml('Test [F#m]\n').song.key).toBe('F#m');
+    expect(songToHtml('Test [Bbm]\n').song.key).toBe('Bbm');
   });
 
   test('handles sharp keys correctly', () => {
@@ -401,5 +412,91 @@ Sections:
     const result = songToHtml(source);
 
     expect(result.song.key).toBe('Bb');
+  });
+});
+
+describe('treble chord notation', () => {
+  test('handles named treble chords with backslash', () => {
+    const source = `Treble Test [C]
+  verse: F\\A G\\B
+
+Sections:
+  Verse 1:
+    ^One ^two`;
+    const result = songToHtml(source);
+
+    expect(result.html).toContain('F\\A');
+    expect(result.html).toContain('G\\B');
+  });
+
+  test('translates numeric treble notation relative to chord root', () => {
+    const source = `Treble Numeric [C]
+  verse: F\\3 G\\3
+
+Sections:
+  Verse 1:
+    ^One ^two`;
+    const result = songToHtml(source);
+
+    // F\3 = F with 3rd (A), G\3 = G with 3rd (B)
+    expect(result.html).toContain('F\\A');
+    expect(result.html).toContain('G\\B');
+  });
+
+  test('translates Nashville treble chords', () => {
+    const source = `Nashville Treble [C]
+  verse: 4\\3 5\\3
+
+Sections:
+  Verse 1:
+    ^One ^two`;
+    const result = songToHtml(source);
+
+    // In C: 4=F, 5=G; 4\3 = F with A (3rd of F), 5\3 = G with B (3rd of G)
+    expect(result.html).toContain('F\\A');
+    expect(result.html).toContain('G\\B');
+  });
+});
+
+describe('chord melody notation', () => {
+  test('handles named chord melody with dash', () => {
+    const source = `Melody Test [C]
+  verse: G-BCD Am-EFG
+
+Sections:
+  Verse 1:
+    ^One ^two`;
+    const result = songToHtml(source);
+
+    expect(result.html).toContain('G-BCD');
+    expect(result.html).toContain('Am-EFG');
+  });
+
+  test('translates numeric melody notes relative to key', () => {
+    const source = `Melody Numeric [C]
+  verse: G-712 Am-345
+
+Sections:
+  Verse 1:
+    ^One ^two`;
+    const result = songToHtml(source);
+
+    // In key of C: 7=B, 1=C, 2=D, 3=E, 4=F, 5=G
+    expect(result.html).toContain('G-BCD');
+    expect(result.html).toContain('Am-EFG');
+  });
+
+  test('translates Nashville chord with numeric melody', () => {
+    const source = `Nashville Melody [G]
+  verse: 1-123 4-456
+
+Sections:
+  Verse 1:
+    ^One ^two`;
+    const result = songToHtml(source);
+
+    // In key of G: 1=G, 2=A, 3=B, 4=C, 5=D, 6=E
+    expect(result.html).toContain('G-GAB');
+    expect(result.html).toContain('C-CDE');
   });
 });
