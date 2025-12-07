@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import songToHtml, { parseSong } from '../index.js';
+import songToHtml from '../index.js';
 import { describe, test, expect } from './runner.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

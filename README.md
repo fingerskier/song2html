@@ -149,7 +149,6 @@ Arrangements:
 ```
 
 
-
 ## Chord Notation
 
 * Notation
