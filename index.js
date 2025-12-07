@@ -1,8 +1,8 @@
 /**
  * @typedef {Object} SongToHtmlOptions
  * @property {string} [arrangementName=''] - Name of the arrangement to use. Defaults to the first available arrangement.
- * @property {boolean} [showChords=true] - Whether to show the chord chart section.
- * @property {boolean} [showTitle=true] - Whether to show the title block with song title, author, key, tempo, and time.
+ * @property {boolean} [chords=true] - Whether to show the chord chart section.
+ * @property {boolean} [title=true] - Whether to show the title block with song title, author, key, tempo, and time.
  */
 
 /**
@@ -15,14 +15,14 @@ export default function songToHtml(source, options = '') {
   // Handle backwards compatibility: options can be a string (arrangementName) or an object
   let arrangementName = ''
   let showChords = true
-  let showTitle = true
+  let showTitleBlock = true
 
   if (typeof options === 'string') {
     arrangementName = options
   } else if (typeof options === 'object' && options !== null) {
     arrangementName = options.arrangementName ?? ''
-    showChords = options.showChords ?? true
-    showTitle = options.showTitle ?? true
+    showChords = options.chords ?? true
+    showTitleBlock = options.title ?? true
   }
   const lines = source.replace(/\r\n?/g, '\n').split('\n')
   let idx = 0
@@ -333,8 +333,8 @@ export default function songToHtml(source, options = '') {
     currentWeight = 0
   }
 
-  // Title block section (controlled by showTitle option)
-  if (showTitle && songTitle) {
+  // Title block section (controlled by title option)
+  if (showTitleBlock && songTitle) {
     const titleLines = []
     titleLines.push(`<h1 class="s2h-title-name">${esc(songTitle)}</h1>`)
     if (authors.length) {
@@ -353,9 +353,9 @@ export default function songToHtml(source, options = '') {
     appendToPage(titleSection.join('\n'), titleWeight)
   }
 
-  // Legacy meta section (for backwards compatibility - only shown if showTitle is false)
+  // Legacy meta section (for backwards compatibility - only shown if title is false)
   const metaLines = []
-  if (!showTitle) {
+  if (!showTitleBlock) {
     if (songKey) metaLines.push(`<p class="s2h-meta-key"><strong>Key:</strong> ${esc(songKey)}</p>`)
     if (tempo !== null) metaLines.push(`<p class="s2h-meta-tempo"><strong>Tempo:</strong> ${tempo}</p>`)
     if (timeSig) metaLines.push(`<p class="s2h-meta-time"><strong>Time:</strong> ${esc(timeSig)}</p>`)
@@ -369,7 +369,7 @@ export default function songToHtml(source, options = '') {
     appendToPage(metaSection.join('\n'), metaLines.length * LINE_WEIGHTS.metaLine)
   }
 
-  // Chord chart section (controlled by showChords option)
+  // Chord chart section (controlled by chords option)
   if (showChords) {
     const chordSection = ['<section class="s2h-chords"><h3 class="s2h-chords-title">Chords</h3>']
     let chordParagraphCount = 0

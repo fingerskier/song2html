@@ -72,9 +72,9 @@ Sections:
       expect(result.html).toContain('<span class="s2h-title-label">Authors:</span> John Doe, Jane Doe');
     });
 
-    test('shows legacy meta section when showTitle is false', () => {
+    test('shows legacy meta section when title is false', () => {
       const source = fixture('simple-song.txt');
-      const result = songToHtml(source, { showTitle: false });
+      const result = songToHtml(source, { title: false });
 
       expect(result.html).toContain('<section class="s2h-meta">');
       expect(result.html).toContain('<strong>Key:</strong> C');
@@ -494,7 +494,7 @@ Sections:
 });
 
 describe('display options', () => {
-  describe('showChords option', () => {
+  describe('chords option', () => {
     test('shows chord chart by default', () => {
       const source = `Test Song [C]
   verse: C G Am F
@@ -508,34 +508,34 @@ Sections:
       expect(result.html).toContain('<h3 class="s2h-chords-title">Chords</h3>');
     });
 
-    test('hides chord chart when showChords is false', () => {
+    test('hides chord chart when chords is false', () => {
       const source = `Test Song [C]
   verse: C G Am F
 
 Sections:
   Verse 1:
     ^One ^two ^three ^four`;
-      const result = songToHtml(source, { showChords: false });
+      const result = songToHtml(source, { chords: false });
 
       expect(result.html).not.toContain('<section class="s2h-chords">');
       expect(result.html).not.toContain('<h3 class="s2h-chords-title">Chords</h3>');
     });
 
-    test('still includes inline chords when showChords is false', () => {
+    test('still includes inline chords when chords is false', () => {
       const source = `Test Song [C]
   verse: C G
 
 Sections:
   Verse 1:
     ^One ^two`;
-      const result = songToHtml(source, { showChords: false });
+      const result = songToHtml(source, { chords: false });
 
       // Inline chords in lyrics should still be present
       expect(result.html).toContain('<sup class="s2h-chord">');
     });
   });
 
-  describe('showTitle option', () => {
+  describe('title option', () => {
     test('shows title block by default', () => {
       const source = `Test Song [C]
   author: Test Author
@@ -552,7 +552,7 @@ Sections:
       expect(result.html).toContain('<h1 class="s2h-title-name">Test Song</h1>');
     });
 
-    test('hides title block when showTitle is false', () => {
+    test('hides title block when title is false', () => {
       const source = `Test Song [C]
   author: Test Author
   verse: C G
@@ -560,13 +560,13 @@ Sections:
 Sections:
   Verse 1:
     ^One ^two`;
-      const result = songToHtml(source, { showTitle: false });
+      const result = songToHtml(source, { title: false });
 
       expect(result.html).not.toContain('<section class="s2h-title">');
       expect(result.html).not.toContain('<h1 class="s2h-title-name">');
     });
 
-    test('shows legacy meta section when showTitle is false', () => {
+    test('shows legacy meta section when title is false', () => {
       const source = `Test Song [C]
   author: Test Author
   tempo: 120
@@ -576,7 +576,7 @@ Sections:
 Sections:
   Verse 1:
     ^One ^two`;
-      const result = songToHtml(source, { showTitle: false });
+      const result = songToHtml(source, { title: false });
 
       expect(result.html).toContain('<section class="s2h-meta">');
       expect(result.html).toContain('<strong>Key:</strong> C');
@@ -595,7 +595,7 @@ Sections:
 Sections:
   Verse 1:
     ^One ^two`;
-      const result = songToHtml(source, { showTitle: false, showChords: false });
+      const result = songToHtml(source, { title: false, chords: false });
 
       expect(result.html).not.toContain('<section class="s2h-title">');
       expect(result.html).not.toContain('<section class="s2h-chords">');
@@ -620,7 +620,7 @@ Arrangements:
   Full:
     Verse 1
     Chorus`;
-      const result = songToHtml(source, { arrangementName: 'Short', showChords: false });
+      const result = songToHtml(source, { arrangementName: 'Short', chords: false });
 
       expect(result.html).toContain('Verse 1');
       expect(result.html).not.toContain('Chorus');
