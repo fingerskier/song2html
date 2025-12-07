@@ -1,0 +1,37 @@
+Song With Arrangements [D]
+  author: Test Author
+  tempo: 100
+  time: 4/4
+
+  verse: D G A D
+  chorus: G A D
+  bridge: Bm G A
+
+Sections:
+  Verse 1:
+    ^First verse ^line one
+    ^First verse ^line two
+
+  Verse 2:
+    ^Second verse ^line one
+    ^Second verse ^line two
+
+  Chorus:
+    ^Chorus ^line ^here
+
+  Bridge:
+    ^Bridge ^line one
+    ^Bridge ^line two
+
+Arrangements:
+  Short:
+    Verse 1
+    Chorus
+
+  Full:
+    Verse 1
+    Chorus
+    Verse 2
+    Chorus
+    Bridge
+    Chorus

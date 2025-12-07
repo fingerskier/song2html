@@ -1,0 +1,14 @@
+Flat Key Song [Bb]
+  author: Jazz Artist
+  tempo: 80
+  time: 4/4
+
+  verse: 1 4 5 1
+  chorus: 2 5 1
+
+Sections:
+  Verse 1:
+    ^Testing ^flat ^key ^transposition
+
+  Chorus:
+    ^Minor ^dominant ^tonic

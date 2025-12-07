@@ -1,0 +1,14 @@
+Slash Chord Test [C]
+  author: Test
+  tempo: 90
+  time: 4/4
+
+  verse: C/G Am/E F/C G/D
+  chorus: 1/5 4/1 5/2 1
+
+Sections:
+  Verse 1:
+    ^Testing ^slash ^chords ^here
+
+  Chorus:
+    ^Nashville ^slash ^chords ^too

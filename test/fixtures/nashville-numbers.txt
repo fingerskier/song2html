@@ -1,0 +1,15 @@
+Test Song [G]
+  author: Test Author
+  key: G
+  tempo: 120
+  time: 4/4
+
+  verse: 1 4 5 1
+  chorus: 4 5 6 1
+
+Sections:
+  Verse 1:
+    ^Testing ^Nashville ^number ^system
+
+  Chorus:
+    ^One ^two ^three ^four

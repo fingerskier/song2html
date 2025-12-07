@@ -1,0 +1,11 @@
+Song With <Special> & "Characters" [Am]
+  author: O'Brien & Sons
+  tempo: 100
+  time: 4/4
+
+  verse: Am G F E
+
+Sections:
+  Verse 1:
+    ^Testing <html> ^entities & ^special "chars"
+    ^More's to ^come
