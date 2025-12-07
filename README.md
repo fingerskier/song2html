@@ -54,7 +54,11 @@ Arrangements:
 
 * There will always be a _default_ arrangement which displays the sections in the order they are given.
 * The first four, metadata lines under are reserved- you cannot have song-sections name `key`, `tempo`, `time`, or `author`.
-* 
+
+**This is output of the example above**
+```html
+<TBD />
+```
 
 
 ## Chord Notation
