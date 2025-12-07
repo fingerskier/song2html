@@ -1,0 +1,10 @@
+Repetition Test [E]
+  author: Test
+  tempo: 120
+  time: 4/4
+
+  verse: (E A) x2 B E
+
+Sections:
+  Verse 1:
+    ^One ^two ^three ^four ^five ^six

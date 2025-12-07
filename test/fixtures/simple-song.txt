@@ -1,0 +1,16 @@
+Amazing Grace [C]
+  author: John Newton
+  tempo: 72
+  time: 3/4
+
+  verse: C F C G
+  chorus: F C G C
+
+Sections:
+  Verse 1:
+    ^Amazing ^grace, how ^sweet the ^sound
+    ^That saved a ^wretch like ^me
+
+  Chorus:
+    ^I once was ^lost, but ^now am ^found
+    ^Was blind, but ^now I ^see

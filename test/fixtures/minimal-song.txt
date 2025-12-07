@@ -1,0 +1,6 @@
+Minimal Song
+  verse: C G
+
+Sections:
+  Verse 1:
+    ^Hello ^world
