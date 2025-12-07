@@ -144,17 +144,18 @@ export default function songToHtml(source, arrangementName = '') {
     return out
   }
 
-  // 3. Fret glyphs -----------------------------------------------------------
-  const FRET = ['', '⠂', '⠅', '⠇', '⠏', '⠗', '⠛', '⠞', '⠟', '⠥', '⠦', '⠧', '⠨', '⠩']
-
+  // 3. Position indicator -----------------------------------------------------
   /**
-   * Formats a chord by replacing fret indicators with Braille glyphs and translating the token.
-   * @param {string} chord - The chord string, possibly with fret notation (e.g., "G|5").
-   * @returns {string} The formatted chord with fret glyphs and translated notation.
+   * Formats a chord by translating the token while preserving position notation (N|#).
+   * @param {string} chord - The chord string, possibly with position notation (e.g., "G|5").
+   * @returns {string} The formatted chord with translated notation and preserved position.
    */
   const fmtChord = (chord) => {
-    const base = chord.replace(/\|(\d{1,2})$/, (_, n) => FRET[+n] || n)
-    return translateToken(base)
+    // Extract position indicator if present (e.g., "G|5" -> position "5")
+    const posMatch = chord.match(/\|(\d{1,2})$/)
+    const base = posMatch ? chord.slice(0, -posMatch[0].length) : chord
+    const translated = translateToken(base)
+    return posMatch ? `${translated}|${posMatch[1]}` : translated
   }
 
   // 4. Chord definitions -----------------------------------------------------
@@ -305,35 +306,35 @@ export default function songToHtml(source, arrangementName = '') {
   const flushPage = () => {
     if (!pageBuffer.length) return
     pages.push(
-      `<section class="song-page" data-page="${pages.length + 1}">\n${pageBuffer.join('\n')}\n</section>`
+      `<section class="s2h-page" data-page="${pages.length + 1}">\n${pageBuffer.join('\n')}\n</section>`
     )
     pageBuffer = []
     currentWeight = 0
   }
 
   const metaLines = []
-  if (songKey) metaLines.push(`<p class="song-meta-key"><strong>Key:</strong> ${esc(songKey)}</p>`)
-  if (tempo !== null) metaLines.push(`<p class="song-meta-tempo"><strong>Tempo:</strong> ${tempo}</p>`)
-  if (timeSig) metaLines.push(`<p class="song-meta-time"><strong>Time:</strong> ${esc(timeSig)}</p>`)
+  if (songKey) metaLines.push(`<p class="s2h-meta-key"><strong>Key:</strong> ${esc(songKey)}</p>`)
+  if (tempo !== null) metaLines.push(`<p class="s2h-meta-tempo"><strong>Tempo:</strong> ${tempo}</p>`)
+  if (timeSig) metaLines.push(`<p class="s2h-meta-time"><strong>Time:</strong> ${esc(timeSig)}</p>`)
   if (authors.length) {
     const label = authors.length > 1 ? 'Authors' : 'Author'
-    metaLines.push(`<p class="song-meta-authors"><strong>${label}:</strong> ${esc(authors.join(', '))}</p>`)
+    metaLines.push(`<p class="s2h-meta-authors"><strong>${label}:</strong> ${esc(authors.join(', '))}</p>`)
   }
   if (metaLines.length) {
-    const metaSection = ['<section class="song-meta">', ...metaLines, '</section>']
+    const metaSection = ['<section class="s2h-meta">', ...metaLines, '</section>']
     appendToPage(metaSection.join('\n'), metaLines.length * LINE_WEIGHTS.metaLine)
   }
 
-  const chordSection = ['<section class="song-chords"><h3 class="chords-title">Chords</h3>']
+  const chordSection = ['<section class="s2h-chords"><h3 class="s2h-chords-title">Chords</h3>']
   let chordParagraphCount = 0
   chosenArr.forEach((sec) => {
     const display = chordDisplay[sectionType(sec)] || []
     if (!display.length) return
-    let html = `<span class="chord-section-label">${esc(sec)}</span> ` + spanLine(display[0])
+    let html = `<span class="s2h-chord-section-label">${esc(sec)}</span> ` + spanLine(display[0])
     for (let i = 1; i < display.length; i++) {
-      html += '<br class="line-break"/>' + spanLine(display[i])
+      html += '<br class="s2h-line-break"/>' + spanLine(display[i])
     }
-    chordSection.push(`<p class="chord-line">${html}</p>`)
+    chordSection.push(`<p class="s2h-chord-line">${html}</p>`)
     chordParagraphCount++
   })
   chordSection.push('</section>')
@@ -342,8 +343,8 @@ export default function songToHtml(source, arrangementName = '') {
   appendToPage(chordSection.join('\n'), chordWeight)
 
   chosenArr.forEach((sec) => {
-    const sectionClass = `section-${sec.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
-    const sectionStart = `<section class="song-section ${sectionClass}">`
+    const sectionClass = `s2h-section-${sec.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+    const sectionStart = `<section class="s2h-section ${sectionClass}">`
     const sectionEnd = '</section>'
     const lns = lyricSections[sec] || []
     const chordArr = chordDefs[sectionType(sec)] || []
@@ -364,7 +365,7 @@ export default function songToHtml(source, arrangementName = '') {
       }
     }
 
-    const headingHtml = `<h3 class="section-title">${esc(sec)}</h3>`
+    const headingHtml = `<h3 class="s2h-section-title">${esc(sec)}</h3>`
 
     openSection()
     appendToPage(headingHtml, LINE_WEIGHTS.sectionHeading, {
@@ -380,9 +381,9 @@ export default function songToHtml(source, arrangementName = '') {
       const htmlLine = processLyric(line, () => {
         const chord = chordArr[ci % chordArr.length] || ''
         ci++
-        return `<sup class="chord">${esc(fmtChord(chord))}</sup>`
+        return `<sup class="s2h-chord">${esc(fmtChord(chord))}</sup>`
       })
-      appendToPage(`<p class="lyric-line">${htmlLine}</p>`, LINE_WEIGHTS.lyricLine, {
+      appendToPage(`<p class="s2h-lyric-line">${htmlLine}</p>`, LINE_WEIGHTS.lyricLine, {
         beforeFlush: () => {
           closeSection()
         },
@@ -397,7 +398,7 @@ export default function songToHtml(source, arrangementName = '') {
 
   flushPage()
 
-  const out = ['<article class="song">', pages.join('\n'), '</article>']
+  const out = ['<article class="s2h-song">', pages.join('\n'), '</article>']
 
   const song = { key: songKey, tempo, authors, time: timeSig }
   return { html: out.join('\n'), arrangements: Object.keys(arrangements), song }
@@ -413,7 +414,7 @@ export default function songToHtml(source, arrangementName = '') {
     return str
       .split(/\s+/)
       .filter(Boolean)
-      .map((c) => `<span class="chord">${esc(fmtChord(c))}</span>`)
+      .map((c) => `<span class="s2h-chord">${esc(fmtChord(c))}</span>`)
       .join(' ')
   }
 
