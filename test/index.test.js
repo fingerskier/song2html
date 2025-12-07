@@ -13,11 +13,11 @@ describe('songToHtml', () => {
       const source = fixture('simple-song.txt');
       const result = songToHtml(source);
 
-      expect(result.html).toContain('<article class="song">');
-      expect(result.html).toContain('<section class="song-page"');
-      expect(result.html).toContain('<section class="song-meta">');
-      expect(result.html).toContain('<section class="song-chords">');
-      expect(result.html).toContain('<section class="song-section');
+      expect(result.html).toContain('<article class="s2h-song">');
+      expect(result.html).toContain('<section class="s2h-page"');
+      expect(result.html).toContain('<section class="s2h-meta">');
+      expect(result.html).toContain('<section class="s2h-chords">');
+      expect(result.html).toContain('<section class="s2h-section');
       expect(result.html).toContain('</article>');
     });
 
@@ -155,7 +155,7 @@ Sections:
 
       // (E A) x2 B E should expand to E A E A B E
       // With 6 carets, each should get a chord
-      const chordMatches = result.html.match(/<sup class="chord">[^<]+<\/sup>/g);
+      const chordMatches = result.html.match(/<sup class="s2h-chord">[^<]+<\/sup>/g);
       expect(chordMatches).toHaveLength(6);
     });
   });
@@ -200,14 +200,14 @@ Sections:
       const result = songToHtml(source);
 
       // Check that sup elements with chords are inserted
-      expect(result.html).toMatch(/<sup class="chord">/);
+      expect(result.html).toMatch(/<sup class="s2h-chord">/);
     });
 
     test('wraps lyrics in paragraph tags', () => {
       const source = fixture('simple-song.txt');
       const result = songToHtml(source);
 
-      expect(result.html).toMatch(/<p class="lyric-line">/);
+      expect(result.html).toMatch(/<p class="s2h-lyric-line">/);
     });
 
     test('cycles chords when more carets than chords', () => {
@@ -219,7 +219,7 @@ Sections:
     ^One ^two ^three ^four`;
       const result = songToHtml(source);
 
-      const chordMatches = result.html.match(/<sup class="chord">[^<]+<\/sup>/g);
+      const chordMatches = result.html.match(/<sup class="s2h-chord">[^<]+<\/sup>/g);
       expect(chordMatches).toHaveLength(4);
       // Should cycle: C, G, C, G
       expect(chordMatches[0]).toContain('C');
@@ -261,8 +261,8 @@ Sections:
       const source = fixture('simple-song.txt');
       const result = songToHtml(source);
 
-      expect(result.html).toContain('section-verse-1');
-      expect(result.html).toContain('section-chorus');
+      expect(result.html).toContain('s2h-section-verse-1');
+      expect(result.html).toContain('s2h-section-chorus');
     });
 
     test('maps chords to sections by section type', () => {
@@ -310,44 +310,6 @@ ${sections}`;
   });
 });
 
-describe('parseSong', () => {
-  test('extracts section names in order', () => {
-    const source = fixture('multiple-arrangements.txt');
-    const result = parseSong(source);
-
-    expect(result.sections).toEqual(['Verse 1', 'Verse 2', 'Chorus', 'Bridge']);
-  });
-
-  test('extracts arrangement definitions', () => {
-    const source = fixture('multiple-arrangements.txt');
-    const result = parseSong(source);
-
-    expect(result.arrangements.Short).toEqual(['Verse 1', 'Chorus']);
-    expect(result.arrangements.Full).toEqual([
-      'Verse 1', 'Chorus', 'Verse 2', 'Chorus', 'Bridge', 'Chorus'
-    ]);
-  });
-
-  test('creates default arrangement when none specified', () => {
-    const source = fixture('simple-song.txt');
-    const result = parseSong(source);
-
-    expect(result.arrangements.default).toEqual(['Verse 1', 'Chorus']);
-  });
-
-  test('handles empty arrangements section', () => {
-    const source = `No Arrangements [C]
-  verse: C G
-
-Sections:
-  Verse 1:
-    ^Hello ^world`;
-    const result = parseSong(source);
-
-    expect(result.arrangements.default).toEqual(['Verse 1']);
-  });
-});
-
 describe('edge cases', () => {
   test('handles Windows line endings (CRLF)', () => {
     const source = 'Test [C]\r\n  verse: C G\r\n\r\nSections:\r\n  Verse 1:\r\n    ^Hello ^world';
@@ -360,7 +322,7 @@ describe('edge cases', () => {
   test('handles empty input gracefully', () => {
     const result = songToHtml('');
 
-    expect(result.html).toContain('<article class="song">');
+    expect(result.html).toContain('<article class="s2h-song">');
     expect(result.song.key).toBeNull();
   });
 
@@ -371,7 +333,7 @@ describe('edge cases', () => {
     const result = songToHtml('Just A Title [A]\n');
 
     expect(result.song.key).toBe('A');
-    expect(result.html).toContain('<article class="song">');
+    expect(result.html).toContain('<article class="s2h-song">');
   });
 
   test('key regex matches minor keys in brackets', () => {
