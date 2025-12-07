@@ -2,6 +2,9 @@
 
 Song charts are translated into HTML so they can be displayed and stylized in a web browser.
 
+
+## Example Input Format
+
 Songs need to be specifically formatted as follows:
 
 ```
@@ -52,6 +55,9 @@ Arrangements:
     Chorus
 ```
 
+
+## Format Specification
+
 * There will always be a _default_ arrangement which displays the sections in the order they are given.
 * Parsing rules:
   * Blank lines are ignored
@@ -97,6 +103,8 @@ Arrangements:
   * Subsequent pages contain song sections
   * Pages are separated after a certain number of lines (configurable in code)
 
+
+## Example Output
 
 **This is output of the example above**
 ```html
