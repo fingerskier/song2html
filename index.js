@@ -64,8 +64,8 @@ export default function songToHtml(source, arrangementName = '') {
 
   // 1. Title & key -----------------------------------------------------------
   const titleLine = (lines[idx] ?? '').trim()
-  const keyMatch = titleLine.match(/\[(\w[♯#♭b]?)]/)
-  let songKey = keyMatch ? normalizeKey(keyMatch[1]) : null // e.g. "C", "F#"
+  const keyMatch = titleLine.match(/\[([A-Ga-g][♯#♭b]?m?)]$/)
+  let songKey = keyMatch ? normalizeKey(keyMatch[1]) : null // e.g. "C", "F#", "Am"
   idx++
 
   // 2. Helpers for number→chord --------------------------------------------
@@ -99,8 +99,65 @@ export default function songToHtml(source, arrangementName = '') {
     return root + qualities[deg]
   }
 
+  // Convert scale degree to just the note name (no quality) relative to key
+  function degreeToNote(num) {
+    if (!songKey) return String(num)
+    const deg = (num - 1) % 7
+    const rootSemi = (semitone(songKey.replace(/m$/, '')) + majorIntervals[deg]) % 12
+    let root = chromatic[rootSemi]
+    if (/b$/.test(songKey) || ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb'].includes(songKey.replace(/m$/, ''))) {
+      root = flats[root] || root
+    }
+    return root
+  }
+
+  // Convert interval number to note relative to a chord root (for treble chords)
+  // e.g., interval 3 from F = A (major 3rd)
+  const chordIntervals = [0, 0, 2, 4, 5, 7, 9, 11] // 1=unison, 2=M2, 3=M3, 4=P4, 5=P5, 6=M6, 7=M7
+  function intervalToNote(chordRoot, interval) {
+    const rootSemi = semitone(chordRoot)
+    const noteSemi = (rootSemi + chordIntervals[interval % 8]) % 12
+    let note = chromatic[noteSemi]
+    if (/b$/.test(songKey) || ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb'].includes(songKey?.replace(/m$/, '') || '')) {
+      note = flats[note] || note
+    }
+    return note
+  }
+
   function translateToken(tok) {
-    // e.g. "1/4", "6", "1sus", "5+" etc
+    // Handle chord melody: G-BCD or G-671 (melody notes relative to key)
+    const melodyMatch = tok.match(/^([A-Ga-g][♯#♭b]?m?|[1-7])-([A-Ga-g0-9♯#♭b]+)(.*)$/)
+    if (melodyMatch) {
+      let chord = melodyMatch[1]
+      if (/^\d$/.test(chord)) chord = degreeToChord(+chord)
+      const melodyPart = melodyMatch[2]
+      // Convert numeric melody notes to actual notes
+      const melodyNotes = melodyPart.split('').map(ch => {
+        if (/[1-7]/.test(ch)) return degreeToNote(+ch)
+        return ch.toUpperCase()
+      }).join('')
+      return chord + '-' + melodyNotes + (melodyMatch[3] || '')
+    }
+
+    // Handle treble chords: F\D or F\3 or 4\3 (treble note, numbers relative to chord root)
+    const trebleMatch = tok.match(/^([A-Ga-g][♯#♭b]?m?|[1-7])\\([A-Ga-g][♯#♭b]?|[1-7])(.*)$/)
+    if (trebleMatch) {
+      let chord = trebleMatch[1]
+      let chordRoot = chord
+      if (/^\d$/.test(chord)) {
+        chord = degreeToChord(+chord)
+        chordRoot = chord.replace(/m|dim$/, '') // get just the root note
+      } else {
+        chordRoot = chord.replace(/m$/, '')
+      }
+      let treble = trebleMatch[2]
+      if (/^\d$/.test(treble)) {
+        treble = intervalToNote(chordRoot, +treble)
+      }
+      return chord + '\\' + treble.toUpperCase() + (trebleMatch[3] || '')
+    }
+
+    // Handle bass slash chords and plain Nashville numbers: 1/4, 6, 1sus, 5+
     const match = tok.match(/^(\d)(?:\/(\d))?(.*)$/)
     if (!match) return tok
     const chord = degreeToChord(+match[1])
@@ -379,7 +436,7 @@ export default function songToHtml(source, arrangementName = '') {
       '"': '&quot;',
       "'": '&#039;',
     }
-    return String(value).replace(/[&<>"]|'"'/g, (ch) => map[ch] ?? ch)
+    return String(value).replace(/[&<>"']/g, (ch) => map[ch] ?? ch)
   }
 
   function sectionType(sec) {
