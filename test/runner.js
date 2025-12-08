@@ -47,9 +47,17 @@ export function expect(actual) {
         throw new Error(`Expected ${expectedStr} but got ${actualStr}`);
       }
     },
-    toContain(substring) {
-      if (typeof actual !== 'string' || !actual.includes(substring)) {
-        throw new Error(`Expected "${String(actual).slice(0, 100)}..." to contain "${substring}"`);
+    toContain(item) {
+      if (Array.isArray(actual)) {
+        if (!actual.includes(item)) {
+          throw new Error(`Expected array to contain "${item}"`);
+        }
+      } else if (typeof actual === 'string') {
+        if (!actual.includes(item)) {
+          throw new Error(`Expected "${String(actual).slice(0, 100)}..." to contain "${item}"`);
+        }
+      } else {
+        throw new Error(`Expected string or array but got ${typeof actual}`);
       }
     },
     toMatch(pattern) {
@@ -103,7 +111,10 @@ export function printSummary() {
 }
 
 // Run tests
-import('./index.test.js').then(() => {
+Promise.all([
+  import('./index.test.js'),
+  import('./state.test.js')
+]).then(() => {
   printSummary();
 }).catch(err => {
   console.error('Error loading tests:', err);
