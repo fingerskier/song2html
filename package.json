@@ -1,6 +1,6 @@
 {
   "name": "song2html",
-  "version": "2025.12.12",
+  "version": "2025.12.13",
   "description": "Convert chord-lyric source text-files to formatted HTML for rendering song charts",
   "main": "index.js",
   "type": "module",
