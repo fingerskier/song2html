@@ -344,9 +344,14 @@ export default function songToHtml(source, arrangementName = '') {
     LINE_WEIGHTS.chordsHeading + chordParagraphCount * LINE_WEIGHTS.chordParagraph
   appendToPage(chordSection.join('\n'), chordWeight)
 
+  const sectionOccurrences = {}
   chosenArr.forEach((sec) => {
-    const sectionClass = `s2h-section-${sec.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
-    const sectionStart = `<section class="s2h-section ${sectionClass}">`
+    const sectionSlug = sec.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+    sectionOccurrences[sectionSlug] = (sectionOccurrences[sectionSlug] || 0) + 1
+    const occurrence = sectionOccurrences[sectionSlug]
+    const sectionId = occurrence > 1 ? `${sectionSlug}-${occurrence}` : sectionSlug
+    const sectionClass = `s2h-section-${sectionSlug}`
+    const sectionStart = `<section id="${sectionId}" class="s2h-section ${sectionClass}">`
     const sectionEnd = '</section>'
     const lns = lyricSections[sec] || []
     const chordArr = chordDefs[sectionType(sec)] || []
