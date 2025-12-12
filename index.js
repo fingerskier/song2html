@@ -2,7 +2,7 @@
  * Converts a song source file into HTML markup with chord notation and lyrics.
  * @param {string} source - The raw song source text containing metadata, chords, lyrics, and arrangements.
  * @param {string} [arrangementName=''] - Optional name of the arrangement to use. Defaults to the first available arrangement.
- * @returns {{ html: string, arrangements: string[], song: { key: string|null, tempo: number|null, authors: string[], time: string|null } }} An object containing the generated HTML, available arrangement names, and song metadata.
+ * @returns {{ html: string, arrangements: string[], song: { title: string, key: string|null, tempo: number|null, authors: string[], time: string|null } }} An object containing the generated HTML, available arrangement names, and song metadata.
  */
 export default function songToHtml(source, arrangementName = '') {
   const lines = source.replace(/\r\n?/g, '\n').split('\n')
@@ -12,6 +12,7 @@ export default function songToHtml(source, arrangementName = '') {
   const titleLine = (lines[idx] ?? '').trim()
   const keyMatch = titleLine.match(/\[([A-Ga-g][♯#♭b]?m?)]$/)
   let songKey = keyMatch ? normalizeKey(keyMatch[1]) : null // e.g. "C", "F#", "Am"
+  const songTitle = keyMatch ? titleLine.slice(0, -keyMatch[0].length).trim() : titleLine
   idx++
 
   // 2. Helpers for number→chord --------------------------------------------
@@ -313,6 +314,7 @@ export default function songToHtml(source, arrangementName = '') {
   }
 
   const metaLines = []
+  if (songTitle) metaLines.push(`<h2 class="s2h-meta-title">${esc(songTitle)}</h2>`)
   if (songKey) metaLines.push(`<p class="s2h-meta-key"><strong>Key:</strong> ${esc(songKey)}</p>`)
   if (tempo !== null) metaLines.push(`<p class="s2h-meta-tempo"><strong>Tempo:</strong> ${tempo}</p>`)
   if (timeSig) metaLines.push(`<p class="s2h-meta-time"><strong>Time:</strong> ${esc(timeSig)}</p>`)
@@ -400,7 +402,7 @@ export default function songToHtml(source, arrangementName = '') {
 
   const out = ['<article class="s2h-song">', pages.join('\n'), '</article>']
 
-  const song = { key: songKey, tempo, authors, time: timeSig }
+  const song = { title: songTitle, key: songKey, tempo, authors, time: timeSig }
   return { html: out.join('\n'), arrangements: Object.keys(arrangements), song }
 
   // helper -------------------------------------------------------------

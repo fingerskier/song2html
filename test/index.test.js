@@ -41,6 +41,41 @@ describe('songToHtml', () => {
       expect(result.html).toContain('<strong>Author:</strong> John Newton');
     });
 
+    test('includes song title as header in meta section', () => {
+      const source = fixture('simple-song.txt');
+      const result = songToHtml(source);
+
+      expect(result.html).toContain('<h2 class="s2h-meta-title">');
+      expect(result.html).toContain('Amazing Grace');
+    });
+
+    test('extracts title without key brackets', () => {
+      const source = `My Song Title [C]
+  verse: C G
+
+Sections:
+  Verse 1:
+    ^Hello ^world`;
+      const result = songToHtml(source);
+
+      expect(result.song.title).toBe('My Song Title');
+      expect(result.html).toContain('<h2 class="s2h-meta-title">My Song Title</h2>');
+    });
+
+    test('extracts full title when no key in brackets', () => {
+      const source = `A Song Without Key
+  key: D
+  verse: D G
+
+Sections:
+  Verse 1:
+    ^Hello ^world`;
+      const result = songToHtml(source);
+
+      expect(result.song.title).toBe('A Song Without Key');
+      expect(result.html).toContain('<h2 class="s2h-meta-title">A Song Without Key</h2>');
+    });
+
     test('uses "Authors" label for multiple authors', () => {
       const source = `Multi Author [C]
   author: John Doe, Jane Doe

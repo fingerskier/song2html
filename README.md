@@ -108,49 +108,50 @@ Arrangements:
 
 **This is output of the example above**
 ```html
-<article class="song">
-<section class="song-page" data-page="1">
-<section class="song-meta">
-<p class="song-meta-key"><strong>Key:</strong> C</p>
-<p class="song-meta-tempo"><strong>Tempo:</strong> 128</p>
-<p class="song-meta-time"><strong>Time:</strong> 4/4</p>
-<p class="song-meta-authors"><strong>Authors:</strong> John Doe, Jane Doe</p>
+<article class="s2h-song">
+<section class="s2h-page" data-page="1">
+<section class="s2h-meta">
+<h2 class="s2h-meta-title">Title</h2>
+<p class="s2h-meta-key"><strong>Key:</strong> C</p>
+<p class="s2h-meta-tempo"><strong>Tempo:</strong> 128</p>
+<p class="s2h-meta-time"><strong>Time:</strong> 4/4</p>
+<p class="s2h-meta-authors"><strong>Authors:</strong> John Doe, Jane Doe</p>
 </section>
-<section class="song-chords"><h3 class="chords-title">Chords</h3>
-<p class="chord-line"><span class="chord-section-label">Chorus</span> <span class="chord">D</span> <span class="chord">E</span> <span class="chord">F</span> <span class="chord">A</span> <span class="chord">B</span> <span class="chord">C</span></p>
-<p class="chord-line"><span class="chord-section-label">Chorus</span> <span class="chord">D</span> <span class="chord">E</span> <span class="chord">F</span> <span class="chord">A</span> <span class="chord">B</span> <span class="chord">C</span></p>
-<p class="chord-line"><span class="chord-section-label">Bridge</span> <span class="chord">G</span> <span class="chord">A</span> <span class="chord">B</span> <span class="chord">C</span> <span class="chord">D</span> <span class="chord">E</span></p>
+<section class="s2h-chords"><h3 class="s2h-chords-title">Chords</h3>
+<p class="s2h-chord-line"><span class="s2h-chord-section-label">Chorus</span> <span class="s2h-chord">D</span> <span class="s2h-chord">E</span> <span class="s2h-chord">F</span> <span class="s2h-chord">A</span> <span class="s2h-chord">B</span> <span class="s2h-chord">C</span></p>
+<p class="s2h-chord-line"><span class="s2h-chord-section-label">Chorus</span> <span class="s2h-chord">D</span> <span class="s2h-chord">E</span> <span class="s2h-chord">F</span> <span class="s2h-chord">A</span> <span class="s2h-chord">B</span> <span class="s2h-chord">C</span></p>
+<p class="s2h-chord-line"><span class="s2h-chord-section-label">Bridge</span> <span class="s2h-chord">G</span> <span class="s2h-chord">A</span> <span class="s2h-chord">B</span> <span class="s2h-chord">C</span> <span class="s2h-chord">D</span> <span class="s2h-chord">E</span></p>
 </section>
-<section class="song-section section-verse-1">
-<h3 class="section-title">Verse 1</h3>
-<p class="lyric-line"><sup class="chord"></sup>Some lyrics <sup class="chord"></sup>are here</p>
-<p class="lyric-line"><sup class="chord"></sup>carets are <sup class="chord"></sup>where chords <sup class="chord"></sup>go</p>
-<p class="lyric-line"><sup class="chord"></sup>oh</p>
+<section class="s2h-section s2h-section-verse-1">
+<h3 class="s2h-section-title">Verse 1</h3>
+<p class="s2h-lyric-line"><sup class="s2h-chord"></sup>Some lyrics <sup class="s2h-chord"></sup>are here</p>
+<p class="s2h-lyric-line"><sup class="s2h-chord"></sup>carets are <sup class="s2h-chord"></sup>where chords <sup class="s2h-chord"></sup>go</p>
+<p class="s2h-lyric-line"><sup class="s2h-chord"></sup>oh</p>
 </section>
-<section class="song-section section-chorus">
-<h3 class="section-title">Chorus</h3>
-<p class="lyric-line"><sup class="chord">D</sup>If the <sup class="chord">E</sup>section name starts with the <sup class="chord">F</sup>same word as the section in the <sup class="chord">A</sup>chord chart <sup class="chord">B</sup>(after the title)</p>
-<p class="lyric-line">it will use those chords in the <sup class="chord">C</sup>section</p>
+<section class="s2h-section s2h-section-chorus">
+<h3 class="s2h-section-title">Chorus</h3>
+<p class="s2h-lyric-line"><sup class="s2h-chord">D</sup>If the <sup class="s2h-chord">E</sup>section name starts with the <sup class="s2h-chord">F</sup>same word as the section in the <sup class="s2h-chord">A</sup>chord chart <sup class="s2h-chord">B</sup>(after the title)</p>
+<p class="s2h-lyric-line">it will use those chords in the <sup class="s2h-chord">C</sup>section</p>
 </section>
-<section class="song-section section-verse-2">
-<h3 class="section-title">Verse 2</h3>
-<p class="lyric-line"><sup class="chord"></sup>For example, all <sup class="chord"></sup>verses will all</p>
-<p class="lyric-line"><sup class="chord"></sup>use the same chords, and chord-naming is <sup class="chord"></sup>pretty flexible.</p>
-<p class="lyric-line"><sup class="chord"></sup>You can even use <sup class="chord"></sup>Nashville numbering.</p>
+<section class="s2h-section s2h-section-verse-2">
+<h3 class="s2h-section-title">Verse 2</h3>
+<p class="s2h-lyric-line"><sup class="s2h-chord"></sup>For example, all <sup class="s2h-chord"></sup>verses will all</p>
+<p class="s2h-lyric-line"><sup class="s2h-chord"></sup>use the same chords, and chord-naming is <sup class="s2h-chord"></sup>pretty flexible.</p>
+<p class="s2h-lyric-line"><sup class="s2h-chord"></sup>You can even use <sup class="s2h-chord"></sup>Nashville numbering.</p>
 </section>
-<section class="song-section section-chorus">
-<h3 class="section-title">Chorus</h3>
+<section class="s2h-section s2h-section-chorus">
+<h3 class="s2h-section-title">Chorus</h3>
 </section>
 </section>
-<section class="song-page" data-page="2">
-<section class="song-section section-chorus">
-<p class="lyric-line"><sup class="chord">D</sup>If the <sup class="chord">E</sup>section name starts with the <sup class="chord">F</sup>same word as the section in the <sup class="chord">A</sup>chord chart <sup class="chord">B</sup>(after the title)</p>
-<p class="lyric-line">it will use those chords in the <sup class="chord">C</sup>section</p>
+<section class="s2h-page" data-page="2">
+<section class="s2h-section s2h-section-chorus">
+<p class="s2h-lyric-line"><sup class="s2h-chord">D</sup>If the <sup class="s2h-chord">E</sup>section name starts with the <sup class="s2h-chord">F</sup>same word as the section in the <sup class="s2h-chord">A</sup>chord chart <sup class="s2h-chord">B</sup>(after the title)</p>
+<p class="s2h-lyric-line">it will use those chords in the <sup class="s2h-chord">C</sup>section</p>
 </section>
-<section class="song-section section-bridge">
-<h3 class="section-title">Bridge</h3>
-<p class="lyric-line"><sup class="chord">G</sup>Don&#039;t forget the colons, <sup class="chord">A</sup>they&#039;re important.</p>
-<p class="lyric-line">And if you have more carets than chords, it will just start at the beginning of the chord chart and keep going.</p>
+<section class="s2h-section s2h-section-bridge">
+<h3 class="s2h-section-title">Bridge</h3>
+<p class="s2h-lyric-line"><sup class="s2h-chord">G</sup>Don&#039;t forget the colons, <sup class="s2h-chord">A</sup>they&#039;re important.</p>
+<p class="s2h-lyric-line">And if you have more carets than chords, it will just start at the beginning of the chord chart and keep going.</p>
 </section>
 </section>
 </article>
