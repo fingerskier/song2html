@@ -17,7 +17,7 @@ describe('songToHtml', () => {
       expect(result.html).toContain('<section class="s2h-page"');
       expect(result.html).toContain('<section class="s2h-meta">');
       expect(result.html).toContain('<section class="s2h-chords">');
-      expect(result.html).toContain('<section class="s2h-section');
+      expect(result.html).toContain('class="s2h-section ');
       expect(result.html).toContain('</article>');
     });
 
@@ -308,6 +308,52 @@ Sections:
       // Both Verse 1 and Verse 2 should use verse chords
       expect(result.html).toContain('Verse 1');
       expect(result.html).toContain('Verse 2');
+    });
+
+    test('adds id attribute to sections for anchors', () => {
+      const source = fixture('simple-song.txt');
+      const result = songToHtml(source);
+
+      expect(result.html).toContain('id="verse-1"');
+      expect(result.html).toContain('id="chorus"');
+    });
+
+    test('creates unique ids for duplicate sections', () => {
+      const source = `Repeated Sections [C]
+  verse: C G
+  chorus: Am F
+
+Sections:
+  Verse 1:
+    ^First verse
+  Chorus:
+    ^First chorus
+  Verse 1:
+    ^Verse again
+  Chorus:
+    ^Chorus again`;
+      const result = songToHtml(source);
+
+      // First occurrences should have simple ids
+      expect(result.html).toContain('id="verse-1"');
+      expect(result.html).toContain('id="chorus"');
+      // Second occurrences should have numbered suffix
+      expect(result.html).toContain('id="verse-1-2"');
+      expect(result.html).toContain('id="chorus-2"');
+    });
+
+    test('section id matches section class slug', () => {
+      const source = `Section Test [C]
+  verse: C G
+
+Sections:
+  Pre-Chorus:
+    ^Test lyrics`;
+      const result = songToHtml(source);
+
+      // Both id and class should use the same slug pattern
+      expect(result.html).toContain('id="pre-chorus"');
+      expect(result.html).toContain('class="s2h-section s2h-section-pre-chorus"');
     });
   });
 
