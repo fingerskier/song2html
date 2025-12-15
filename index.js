@@ -2,11 +2,14 @@
  * Converts a song source file into HTML markup with chord notation and lyrics.
  * @param {string} source - The raw song source text containing metadata, chords, lyrics, and arrangements.
  * @param {string} [arrangementName=''] - Optional name of the arrangement to use. Defaults to the first available arrangement.
- * @returns {{ html: string, arrangements: string[], song: { title: string, key: string|null, tempo: number|null, authors: string[], time: string|null } }} An object containing the generated HTML, available arrangement names, and song metadata.
+ * @returns {{ html: string, arrangements: string[], song: { title: string, key: string|null, tempo: number|null, authors: string[], time: string|null }, errata: Array<{ type: string, message: string, section?: string, line?: number }> }} An object containing the generated HTML, available arrangement names, song metadata, and parsing errata.
  */
 export default function songToHtml(source, arrangementName = '') {
   const lines = source.replace(/\r\n?/g, '\n').split('\n')
   let idx = 0
+
+  // Errata tracking for parsing issues
+  const errata = []
 
   // 1. Title & key -----------------------------------------------------------
   const titleLine = (lines[idx] ?? '').trim()
@@ -177,7 +180,11 @@ export default function songToHtml(source, arrangementName = '') {
           break
         case 'tempo': {
           const n = parseInt(val, 10)
-          if (!Number.isNaN(n)) tempo = n
+          if (!Number.isNaN(n)) {
+            tempo = n
+          } else {
+            errata.push({ type: 'invalid-tempo', message: `Invalid tempo value: "${val}"`, line: idx + 1 })
+          }
           break
         }
         case 'author':
@@ -210,6 +217,11 @@ export default function songToHtml(source, arrangementName = '') {
       chordDefs[key] = expandProg(display.join(' '))
     }
     idx++
+  }
+
+  // Check for missing key after all metadata is parsed
+  if (!songKey) {
+    errata.push({ type: 'missing-key', message: 'No musical key specified in title or metadata' })
   }
 
   // 5. Lyric sections --------------------------------------------------------
@@ -274,6 +286,23 @@ export default function songToHtml(source, arrangementName = '') {
   if (!Object.keys(arrangements).length) arrangements.default = sectionOrder
   const chosenArr =
     arrangements[arrangementName] || arrangements[Object.keys(arrangements)[0]]
+
+  // Validate arrangement sections and track errata
+  const trackedMissingChords = new Set()
+  const trackedMissingSections = new Set()
+  chosenArr.forEach((sec) => {
+    const secType = sec.split(/\s+/)[0].toLowerCase()
+    // Track missing chord definitions (only once per section type)
+    if (!chordDisplay[secType] && !trackedMissingChords.has(secType)) {
+      trackedMissingChords.add(secType)
+      errata.push({ type: 'missing-chords', message: `No chord definition found for section type "${secType}"`, section: sec })
+    }
+    // Track missing lyric sections
+    if (!lyricSections[sec] && !trackedMissingSections.has(sec)) {
+      trackedMissingSections.add(sec)
+      errata.push({ type: 'missing-section', message: `Section "${sec}" referenced in arrangement but not defined in Sections`, section: sec })
+    }
+  })
 
   // 7. Build HTML ------------------------------------------------------------
   const PAGE_BUDGET = 28
@@ -358,6 +387,17 @@ export default function songToHtml(source, arrangementName = '') {
     let ci = 0
     let sectionOpen = false
 
+    // Count carets in lyrics for this section
+    const caretCount = lns.reduce((count, line) => count + (line.match(/\^/g) || []).length, 0)
+    // Track chord/caret mismatch (when chords must cycle)
+    if (caretCount > 0 && chordArr.length > 0 && caretCount > chordArr.length) {
+      errata.push({
+        type: 'chord-caret-mismatch',
+        message: `Section "${sec}" has ${caretCount} chord markers but only ${chordArr.length} chords defined (chords will cycle)`,
+        section: sec
+      })
+    }
+
     const openSection = () => {
       if (!sectionOpen) {
         appendToPage(sectionStart)
@@ -408,7 +448,7 @@ export default function songToHtml(source, arrangementName = '') {
   const out = ['<article class="s2h-song">', pages.join('\n'), '</article>']
 
   const song = { title: songTitle, key: songKey, tempo, authors, time: timeSig }
-  return { html: out.join('\n'), arrangements: Object.keys(arrangements), song }
+  return { html: out.join('\n'), arrangements: Object.keys(arrangements), song, errata }
 
   // helper -------------------------------------------------------------
 
