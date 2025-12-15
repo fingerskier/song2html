@@ -543,3 +543,133 @@ Sections:
     expect(result.html).toContain('C-CDE');
   });
 });
+
+describe('errata tracking', () => {
+  test('returns empty errata array for valid song', () => {
+    const source = `Perfect Song [C]
+  verse: C G Am F
+
+Sections:
+  Verse 1:
+    ^One ^two ^three ^four`;
+    const result = songToHtml(source);
+
+    expect(result.errata).toEqual([]);
+  });
+
+  test('tracks missing key warning', () => {
+    const source = `No Key Song
+  verse: C G
+
+Sections:
+  Verse 1:
+    ^Hello ^world`;
+    const result = songToHtml(source);
+
+    expect(result.errata.length).toBe(1);
+    expect(result.errata[0].type).toBe('missing-key');
+    expect(result.errata[0].message).toContain('No musical key');
+  });
+
+  test('tracks invalid tempo value', () => {
+    const source = `Test Song [C]
+  tempo: fast
+  verse: C G
+
+Sections:
+  Verse 1:
+    ^Hello ^world`;
+    const result = songToHtml(source);
+
+    const tempoErrata = result.errata.find(e => e.type === 'invalid-tempo');
+    expect(tempoErrata.message).toContain('fast');
+    expect(tempoErrata.line).toBe(2);
+  });
+
+  test('tracks missing chord definitions', () => {
+    const source = `Test Song [C]
+
+Sections:
+  Verse 1:
+    ^Hello ^world
+  Bridge:
+    ^Test line`;
+    const result = songToHtml(source);
+
+    const chordErrata = result.errata.filter(e => e.type === 'missing-chords');
+    expect(chordErrata.length).toBe(2);
+    expect(chordErrata[0].section).toBe('Verse 1');
+    expect(chordErrata[1].section).toBe('Bridge');
+  });
+
+  test('tracks missing sections in arrangements', () => {
+    const source = `Test Song [C]
+  verse: C G
+
+Sections:
+  Verse 1:
+    ^Hello ^world
+
+Arrangements:
+  Full:
+    Verse 1
+    Verse 2
+    Chorus`;
+    const result = songToHtml(source, 'Full');
+
+    const sectionErrata = result.errata.filter(e => e.type === 'missing-section');
+    expect(sectionErrata.length).toBe(2);
+    expect(sectionErrata.some(e => e.section === 'Verse 2')).toBe(true);
+    expect(sectionErrata.some(e => e.section === 'Chorus')).toBe(true);
+  });
+
+  test('tracks chord/caret mismatch when chords cycle', () => {
+    const source = `Cycle Test [C]
+  verse: C G
+
+Sections:
+  Verse 1:
+    ^One ^two ^three ^four ^five`;
+    const result = songToHtml(source);
+
+    const mismatchErrata = result.errata.find(e => e.type === 'chord-caret-mismatch');
+    expect(mismatchErrata.section).toBe('Verse 1');
+    expect(mismatchErrata.message).toContain('5 chord markers');
+    expect(mismatchErrata.message).toContain('2 chords defined');
+  });
+
+  test('does not report chord mismatch when carets equal chords', () => {
+    const source = `Perfect Match [C]
+  verse: C G Am F
+
+Sections:
+  Verse 1:
+    ^One ^two ^three ^four`;
+    const result = songToHtml(source);
+
+    const mismatchErrata = result.errata.filter(e => e.type === 'chord-caret-mismatch');
+    expect(mismatchErrata.length).toBe(0);
+  });
+
+  test('tracks multiple errata types simultaneously', () => {
+    const source = `Problem Song
+  tempo: invalid
+
+Sections:
+  Verse 1:
+    ^One ^two ^three
+
+Arrangements:
+  Test:
+    Verse 1
+    Missing Section`;
+    const result = songToHtml(source, 'Test');
+
+    // Should have: missing-key, invalid-tempo, missing-chords, missing-section
+    const types = result.errata.map(e => e.type);
+    expect(types.includes('missing-key')).toBe(true);
+    expect(types.includes('invalid-tempo')).toBe(true);
+    expect(types.includes('missing-chords')).toBe(true);
+    expect(types.includes('missing-section')).toBe(true);
+  });
+});
