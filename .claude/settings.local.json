@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node test/runner.js:*)",
+      "mcp__plugin_dude_dude__upsert_record"
+    ]
+  }
+}

@@ -673,3 +673,202 @@ Arrangements:
     expect(types.includes('missing-section')).toBe(true);
   });
 });
+
+describe('transpose directive', () => {
+  test('positive offset transposes Nashville numbers', () => {
+    const source = `Transpose Up [G]
+  verse: 1 4 5 1
+
+Sections:
+  Verse 1:
+    <transpose +2>
+    ^One ^four ^five ^one`;
+    const result = songToHtml(source);
+
+    // Key G + 2 half steps = A; 1=A, 4=D, 5=E
+    const chords = result.html.match(/<sup class="s2h-chord">[^<]+<\/sup>/g);
+    expect(chords[0]).toContain('A');
+    expect(chords[1]).toContain('D');
+    expect(chords[2]).toContain('E');
+    expect(chords[3]).toContain('A');
+  });
+
+  test('negative offset works', () => {
+    const source = `Transpose Down [G]
+  verse: 1 4 5
+
+Sections:
+  Verse 1:
+    <transpose -2>
+    ^One ^four ^five`;
+    const result = songToHtml(source);
+
+    // Key G - 2 half steps = F; 1=F, 4=Bb, 5=C
+    const chords = result.html.match(/<sup class="s2h-chord">[^<]+<\/sup>/g);
+    expect(chords[0]).toContain('F');
+    expect(chords[1]).toContain('Bb');
+    expect(chords[2]).toContain('C');
+  });
+
+  test('named chords are NOT transposed', () => {
+    const source = `Named Chords [G]
+  verse: G C D
+
+Sections:
+  Verse 1:
+    <transpose +2>
+    ^One ^four ^five`;
+    const result = songToHtml(source);
+
+    // Named chords G, C, D should remain unchanged
+    const chords = result.html.match(/<sup class="s2h-chord">[^<]+<\/sup>/g);
+    expect(chords[0]).toContain('G');
+    expect(chords[1]).toContain('C');
+    expect(chords[2]).toContain('D');
+  });
+
+  test('no-key songs: transpose has no effect', () => {
+    const source = `No Key
+  verse: 1 4 5
+
+Sections:
+  Verse 1:
+    <transpose +2>
+    ^One ^four ^five`;
+    const result = songToHtml(source);
+
+    // Numbers stay numeric when no key
+    const chords = result.html.match(/<sup class="s2h-chord">[^<]+<\/sup>/g);
+    expect(chords[0]).toContain('1');
+    expect(chords[1]).toContain('4');
+    expect(chords[2]).toContain('5');
+  });
+
+  test('section-level transpose is isolated', () => {
+    const source = `Isolated [G]
+  verse: 1 4 5 1
+
+Sections:
+  Verse 1:
+    ^Normal ^key ^here ^G
+
+  Verse 2:
+    <transpose +2>
+    ^Trans ^posed ^up ^two
+
+Arrangements:
+  Test:
+    Verse 1
+    Verse 2`;
+    const result = songToHtml(source, 'Test');
+
+    const chords = result.html.match(/<sup class="s2h-chord">[^<]+<\/sup>/g);
+    // Verse 1: G C D G (original key)
+    expect(chords[0]).toContain('G');
+    expect(chords[1]).toContain('C');
+    expect(chords[2]).toContain('D');
+    expect(chords[3]).toContain('G');
+    // Verse 2: A D E A (transposed +2)
+    expect(chords[4]).toContain('A');
+    expect(chords[5]).toContain('D');
+    expect(chords[6]).toContain('E');
+    expect(chords[7]).toContain('A');
+  });
+
+  test('chord summary shows transposed chords for transposed sections', () => {
+    const source = `Chord Summary [G]
+  verse: 1 4 5
+
+Sections:
+  Verse 1:
+    <transpose +2>
+    ^One ^four ^five`;
+    const result = songToHtml(source);
+
+    // Chord summary should show transposed chords (A D E, not G C D)
+    const chordSummary = result.html.match(/<section class="s2h-chords">[\s\S]*?<\/section>/);
+    expect(chordSummary[0]).toContain('A');
+    expect(chordSummary[0]).toContain('D');
+    expect(chordSummary[0]).toContain('E');
+  });
+
+  test('directive line does NOT appear in HTML output', () => {
+    const source = `Hidden Directive [G]
+  verse: 1 4 5
+
+Sections:
+  Verse 1:
+    <transpose +2>
+    ^One ^four ^five`;
+    const result = songToHtml(source);
+
+    expect(result.html).not.toContain('transpose');
+  });
+
+  test('arrangement-level transpose works inline', () => {
+    const source = `Arr Transpose [G]
+  verse: 1 4 5 1
+
+Sections:
+  Verse 1:
+    ^One ^four ^five ^one
+
+Arrangements:
+  Test:
+    Verse 1
+    Verse 1 <transpose +5>`;
+    const result = songToHtml(source, 'Test');
+
+    const chords = result.html.match(/<sup class="s2h-chord">[^<]+<\/sup>/g);
+    // First Verse 1: G C D G
+    expect(chords[0]).toContain('G');
+    expect(chords[1]).toContain('C');
+    expect(chords[2]).toContain('D');
+    expect(chords[3]).toContain('G');
+    // Second Verse 1 <transpose +5>: key G + 5 = C; 1=C, 4=F, 5=G
+    expect(chords[4]).toContain('C');
+    expect(chords[5]).toContain('F');
+    expect(chords[6]).toContain('G');
+    expect(chords[7]).toContain('C');
+  });
+
+  test('arrangement transpose overrides section-level transpose', () => {
+    const source = `Override [G]
+  verse: 1 4 5 1
+
+Sections:
+  Verse 1:
+    <transpose +2>
+    ^One ^four ^five ^one
+
+Arrangements:
+  Test:
+    Verse 1 <transpose +5>`;
+    const result = songToHtml(source, 'Test');
+
+    // Section says +2, arrangement says +5 → +5 wins
+    // Key G + 5 = C; 1=C, 4=F, 5=G
+    const chords = result.html.match(/<sup class="s2h-chord">[^<]+<\/sup>/g);
+    expect(chords[0]).toContain('C');
+    expect(chords[1]).toContain('F');
+    expect(chords[2]).toContain('G');
+    expect(chords[3]).toContain('C');
+  });
+
+  test('flat key spelling preserved when appropriate', () => {
+    const source = `Flat Key [Bb]
+  verse: 1 4 5
+
+Sections:
+  Verse 1:
+    <transpose +2>
+    ^One ^four ^five`;
+    const result = songToHtml(source);
+
+    // Key Bb + 2 = C; 1=C, 4=F, 5=G (C is not a flat key, so sharps used)
+    const chords = result.html.match(/<sup class="s2h-chord">[^<]+<\/sup>/g);
+    expect(chords[0]).toContain('C');
+    expect(chords[1]).toContain('F');
+    expect(chords[2]).toContain('G');
+  });
+});

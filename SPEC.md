@@ -145,6 +145,22 @@ Sections:
     ^I once was ^lost, but ^now I'm ^found
 ```
 
+### Transpose Directive
+
+The `<transpose +N>` or `<transpose -N>` directive shifts the effective key for Nashville numbered chords in that section. Named chords (G, C, Am) are unaffected.
+
+```
+Sections:
+  Chorus 2:
+    <transpose +2>
+    ^Higher ^key ^lyrics
+```
+
+- Must be on its own line (4-space indented within section content)
+- `N` is the number of half steps to shift (positive or negative)
+- Only affects Nashville numbered chords (1-7); named chords pass through unchanged
+- The directive line itself does not appear in the HTML output
+
 ### Chord Markers (`^`)
 
 The caret `^` marks where chords appear in lyrics:
@@ -180,6 +196,22 @@ Arrangements:
     Bridge
     Chorus
 ```
+
+### Inline Transpose
+
+Arrangement entries can include an inline `<transpose +N>` directive to shift the effective key for that occurrence:
+
+```
+Arrangements:
+  Modulating:
+    Verse 1
+    Chorus
+    Verse 2 <transpose +2>
+    Chorus <transpose +2>
+```
+
+- Arrangement-level transpose **overrides** any section-level transpose (not additive)
+- Only affects Nashville numbered chords; named chords are unchanged
 
 If no arrangements are defined, sections render in the order they appear.
 

@@ -1,0 +1,17 @@
+Transpose Test [G]
+  verse: 1 4 5 1
+  chorus: 1 4 5 1
+
+Sections:
+  Verse 1:
+    ^Original ^key ^chords ^here
+
+  Chorus 2:
+    <transpose +2>
+    ^Transposed ^up two ^half ^steps
+
+Arrangements:
+  Modulating:
+    Verse 1
+    Chorus 2
+    Verse 1 <transpose +5>

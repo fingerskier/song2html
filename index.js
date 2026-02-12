@@ -80,6 +80,23 @@ export default function songToHtml(source, arrangementName = '') {
     return root
   }
 
+  /**
+   * Shifts the song key by a number of half steps.
+   * @param {number} offset - Number of half steps to shift (positive or negative).
+   * @returns {string|null} The shifted key, or null if no key is set.
+   */
+  function shiftKey(offset) {
+    if (!songKey) return songKey
+    const isMinor = songKey.endsWith('m')
+    const base = isMinor ? songKey.slice(0, -1) : songKey
+    const shifted = (semitone(base) + offset % 12 + 12) % 12
+    let note = chromatic[shifted]
+    if (/b$/.test(base) || ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb'].includes(base)) {
+      note = flats[note] || note
+    }
+    return isMinor ? note + 'm' : note
+  }
+
   // Interval semitones: 1=unison, 2=M2, 3=M3, 4=P4, 5=P5, 6=M6, 7=M7
   const chordIntervals = [0, 0, 2, 4, 5, 7, 9, 11]
 
@@ -226,6 +243,7 @@ export default function songToHtml(source, arrangementName = '') {
 
   // 5. Lyric sections --------------------------------------------------------
   const lyricSections = {}
+  const sectionTranspose = {}
   const sectionOrder = []
   const sectionHeaderRE = /^\s{2,}([\w -]+):\s*$/
   while (idx < lines.length && !/^\s*Arrangements:/i.test(lines[idx])) {
@@ -241,7 +259,14 @@ export default function songToHtml(source, arrangementName = '') {
         !/^\s*Arrangements:/i.test(lines[idx])
       ) {
         const raw = lines[idx]
-        if (raw.trim()) lns.push(raw.replace(/^\s{4}/, ''))
+        if (raw.trim()) {
+          const transposeMatch = raw.trim().match(/^<transpose\s*([+-]?\d+)>$/i)
+          if (transposeMatch) {
+            sectionTranspose[name] = parseInt(transposeMatch[1], 10)
+          } else {
+            lns.push(raw.replace(/^\s{4}/, ''))
+          }
+        }
         idx++
       }
       lyricSections[name] = lns
@@ -284,8 +309,19 @@ export default function songToHtml(source, arrangementName = '') {
     }
   }
   if (!Object.keys(arrangements).length) arrangements.default = sectionOrder
-  const chosenArr =
+  const chosenRaw =
     arrangements[arrangementName] || arrangements[Object.keys(arrangements)[0]]
+
+  // Extract inline <transpose> directives from arrangement entries
+  const arrTranspose = {}
+  const chosenArr = chosenRaw.map((entry, i) => {
+    const match = entry.match(/<transpose\s*([+-]?\d+)>/i)
+    if (match) {
+      arrTranspose[i] = parseInt(match[1], 10)
+      return entry.replace(/<transpose\s*[+-]?\d+>/i, '').trim()
+    }
+    return entry
+  })
 
   // Validate arrangement sections and track errata
   const trackedMissingChords = new Set()
@@ -358,13 +394,17 @@ export default function songToHtml(source, arrangementName = '') {
 
   const chordSection = ['<section class="s2h-chords"><h3 class="s2h-chords-title">Chords</h3>']
   let chordParagraphCount = 0
-  chosenArr.forEach((sec) => {
+  chosenArr.forEach((sec, i) => {
     const display = chordDisplay[sectionType(sec)] || []
     if (!display.length) return
+    const offset = (i in arrTranspose) ? arrTranspose[i] : (sectionTranspose[sec] || 0)
+    const savedKey = songKey
+    if (offset) songKey = shiftKey(offset)
     let html = `<span class="s2h-chord-section-label">${esc(sec)}</span> ` + spanLine(display[0])
-    for (let i = 1; i < display.length; i++) {
-      html += '<br class="s2h-line-break"/>' + spanLine(display[i])
+    for (let j = 1; j < display.length; j++) {
+      html += '<br class="s2h-line-break"/>' + spanLine(display[j])
     }
+    songKey = savedKey
     chordSection.push(`<p class="s2h-chord-line">${html}</p>`)
     chordParagraphCount++
   })
@@ -374,7 +414,7 @@ export default function songToHtml(source, arrangementName = '') {
   appendToPage(chordSection.join('\n'), chordWeight)
 
   const sectionOccurrences = {}
-  chosenArr.forEach((sec) => {
+  chosenArr.forEach((sec, i) => {
     const sectionSlug = sec.toLowerCase().replace(/[^a-z0-9]+/g, '-')
     sectionOccurrences[sectionSlug] = (sectionOccurrences[sectionSlug] || 0) + 1
     const occurrence = sectionOccurrences[sectionSlug]
@@ -386,6 +426,11 @@ export default function songToHtml(source, arrangementName = '') {
     const chordArr = chordDefs[sectionType(sec)] || []
     let ci = 0
     let sectionOpen = false
+
+    // Apply transpose: arrangement-level overrides section-level
+    const offset = (i in arrTranspose) ? arrTranspose[i] : (sectionTranspose[sec] || 0)
+    const savedKey = songKey
+    if (offset) songKey = shiftKey(offset)
 
     // Count carets in lyrics for this section
     const caretCount = lns.reduce((count, line) => count + (line.match(/\^/g) || []).length, 0)
@@ -440,6 +485,7 @@ export default function songToHtml(source, arrangementName = '') {
       })
     })
 
+    songKey = savedKey
     closeSection()
   })
 
