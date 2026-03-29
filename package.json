@@ -4,17 +4,35 @@
   "description": "Convert chord-lyric source text-files to formatted HTML for rendering song charts",
   "main": "index.js",
   "type": "module",
-  "scripts": {
-    "test": "node test/runner.js"
+  "bin": {
+    "song2html-claude": "bin/song2html-claude.js"
   },
+  "scripts": {
+    "test": "node test/runner.js",
+    "start:mcp": "node bin/song2html-claude.js"
+  },
+  "files": [
+    "index.js",
+    "bin/",
+    "src/",
+    ".claude-plugin/",
+    "mcp-servers.json",
+    "skills/"
+  ],
   "keywords": [
     "song",
     "chord",
     "lyrics",
     "html",
     "music",
-    "nashville-number"
+    "nashville-number",
+    "claude-code-plugin",
+    "mcp"
   ],
   "author": "fingerskier",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.23.0"
+  }
 }
