@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "song2html": {
+      "command": "node",
+      "args": ["bin/song2html-claude.js"]
+    }
+  }
+}

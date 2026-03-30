@@ -1,0 +1,20 @@
+{
+  "name": "song2html-claude-plugin",
+  "version": "2026.3.29",
+  "description": "Read, write, parse, validate, transpose, and render song chord charts using the song2html format.",
+  "author": {
+    "name": "Fingerskier"
+  },
+  "license": "MIT",
+  "keywords": [
+    "song",
+    "chord",
+    "lyrics",
+    "music",
+    "html",
+    "nashville-number",
+    "chord-chart",
+    "mcp"
+  ],
+  "mcpServers": "./mcp-servers.json"
+}
