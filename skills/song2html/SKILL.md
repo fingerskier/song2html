@@ -44,6 +44,18 @@ Arrangements:
 - **Transpose directive**: `<transpose +2>` shifts Nashville numbers
 - **Arrangements**: optional named orderings of sections
 
+## Converting Standard Chord Charts
+
+To convert a standard chords-over-lyrics text file into song2html format, see the **convert-chord-chart** skill for a detailed step-by-step guide covering all common input formats (chords above lyrics, inline brackets, Nashville numbers, tab sites).
+
+**Quick conversion summary:**
+1. Extract title + key → first line: `Song Title [Key]`
+2. Extract metadata → 2-space indented `author:`, `tempo:`, `time:`
+3. Extract chord progressions per section → 2-space indented `section: chord1 chord2 ...`
+4. Place `^` carets at each syllable where a chord change occurs in the lyrics
+5. Wrap in `Sections:` with 2-space section headers and 4-space indented lyrics
+6. Optionally add `Arrangements:` for song structure
+
 ## Tools
 
 | Tool | Purpose |
