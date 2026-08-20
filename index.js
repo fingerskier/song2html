@@ -2,7 +2,7 @@
  * Converts a song source file into HTML markup with chord notation and lyrics.
  * @param {string} source - The raw song source text containing metadata, chords, lyrics, and arrangements.
  * @param {string} [arrangementName=''] - Optional name of the arrangement to use. Defaults to the first available arrangement.
- * @returns {{ html: string, arrangements: string[], song: { title: string, key: string|null, tempo: number|null, authors: string[], time: string|null }, errata: Array<{ type: string, message: string, section?: string, line?: number }> }} An object containing the generated HTML, available arrangement names, song metadata, and parsing errata.
+ * @returns {{ html: string, arrangements: string[], song: { title: string, key: string|null, tempo: number|null, authors: string[], time: string|null, owner: string|null, license: string|null }, errata: Array<{ type: string, message: string, section?: string, line?: number }> }} An object containing the generated HTML, available arrangement names, song metadata, and parsing errata.
  */
 export default function songToHtml(source, arrangementName = '') {
   const lines = source.replace(/\r\n?/g, '\n').split('\n')
@@ -185,9 +185,11 @@ export default function songToHtml(source, arrangementName = '') {
   let tempo = null
   let authors = []
   let timeSig = null
+  let owner = null
+  let license = null
 
   while (idx < lines.length && !/^\s*Sections:/i.test(lines[idx])) {
-    const meta = lines[idx].match(/^\s*(key|tempo|author|time):\s*(.+)$/i)
+    const meta = lines[idx].match(/^\s*(key|tempo|author|time|owner|license):\s*(.+)$/i)
     if (meta) {
       const tag = meta[1].toLowerCase()
       const val = meta[2].trim()
@@ -209,6 +211,12 @@ export default function songToHtml(source, arrangementName = '') {
           break
         case 'time':
           timeSig = val
+          break
+        case 'owner':
+          owner = val
+          break
+        case 'license':
+          license = val
           break
         default:
           break
@@ -371,22 +379,27 @@ export default function songToHtml(source, arrangementName = '') {
 
   const flushPage = () => {
     if (!pageBuffer.length) return
+    const footerLines = []
+    if (owner) footerLines.push(`<span class="s2h-footer-owner">&copy; ${esc(owner)}</span>`)
+    if (license) footerLines.push(`<span class="s2h-footer-license">${esc(license)}</span>`)
+    const footer = footerLines.length
+      ? `\n<footer class="s2h-page-footer">${footerLines.join(' ')}</footer>`
+      : ''
     pages.push(
-      `<section class="s2h-page" data-page="${pages.length + 1}">\n${pageBuffer.join('\n')}\n</section>`
+      `<section class="s2h-page" data-page="${pages.length + 1}">\n${pageBuffer.join('\n')}${footer}\n</section>`
     )
     pageBuffer = []
     currentWeight = 0
   }
 
   const metaLines = []
-  if (songTitle) metaLines.push(`<h2 class="s2h-meta-title">${esc(songTitle)}</h2>`)
+  metaLines.push(`<h2 class="s2h-meta-title">${esc(songTitle)}</h2>`)
+  if (authors.length) {
+    metaLines.push(`<p class="s2h-meta-authors">${esc(authors.join(', '))}</p>`)
+  }
   if (songKey) metaLines.push(`<p class="s2h-meta-key"><strong>Key:</strong> ${esc(songKey)}</p>`)
   if (tempo !== null) metaLines.push(`<p class="s2h-meta-tempo"><strong>Tempo:</strong> ${tempo}</p>`)
   if (timeSig) metaLines.push(`<p class="s2h-meta-time"><strong>Time:</strong> ${esc(timeSig)}</p>`)
-  if (authors.length) {
-    const label = authors.length > 1 ? 'Authors' : 'Author'
-    metaLines.push(`<p class="s2h-meta-authors"><strong>${label}:</strong> ${esc(authors.join(', '))}</p>`)
-  }
   if (metaLines.length) {
     const metaSection = ['<section class="s2h-meta">', ...metaLines, '</section>']
     appendToPage(metaSection.join('\n'), metaLines.length * LINE_WEIGHTS.metaLine)
@@ -493,7 +506,7 @@ export default function songToHtml(source, arrangementName = '') {
 
   const out = ['<article class="s2h-song">', pages.join('\n'), '</article>']
 
-  const song = { title: songTitle, key: songKey, tempo, authors, time: timeSig }
+  const song = { title: songTitle, key: songKey, tempo, authors, time: timeSig, owner, license }
   return { html: out.join('\n'), arrangements: Object.keys(arrangements), song, errata }
 
   // helper -------------------------------------------------------------

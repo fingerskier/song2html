@@ -38,7 +38,7 @@ describe('songToHtml', () => {
       expect(result.html).toContain('<strong>Key:</strong> C');
       expect(result.html).toContain('<strong>Tempo:</strong> 72');
       expect(result.html).toContain('<strong>Time:</strong> 3/4');
-      expect(result.html).toContain('<strong>Author:</strong> John Newton');
+      expect(result.html).toContain('<p class="s2h-meta-authors">John Newton</p>');
     });
 
     test('includes song title as header in meta section', () => {
@@ -76,7 +76,7 @@ Sections:
       expect(result.html).toContain('<h2 class="s2h-meta-title">A Song Without Key</h2>');
     });
 
-    test('uses "Authors" label for multiple authors', () => {
+    test('renders multiple authors as title subtext', () => {
       const source = `Multi Author [C]
   author: John Doe, Jane Doe
   verse: C G
@@ -86,7 +86,28 @@ Sections:
     ^Hello ^world`;
       const result = songToHtml(source);
 
-      expect(result.html).toContain('<strong>Authors:</strong> John Doe, Jane Doe');
+      expect(result.html).toContain('<h2 class="s2h-meta-title">Multi Author</h2>\n<p class="s2h-meta-authors">John Doe, Jane Doe</p>');
+    });
+
+    test('always renders the title heading, including an empty title', () => {
+      const result = songToHtml('');
+
+      expect(result.html).toContain('<h2 class="s2h-meta-title"></h2>');
+    });
+
+    test('extracts owner and license metadata', () => {
+      const source = `Credited Song [C]
+  owner: Example Music LLC
+  license: CC BY-SA 4.0
+  verse: C
+
+Sections:
+  Verse 1:
+    ^Hello`;
+      const result = songToHtml(source);
+
+      expect(result.song.owner).toBe('Example Music LLC');
+      expect(result.song.license).toBe('CC BY-SA 4.0');
     });
   });
 
@@ -387,6 +408,42 @@ ${sections}`;
       // Should have multiple pages
       const pageMatches = result.html.match(/data-page="\d+"/g);
       expect(pageMatches.length).toBeGreaterThan(1);
+    });
+
+    test('adds owner copyright and license to every page footer', () => {
+      let sections = '';
+      for (let i = 1; i <= 20; i++) {
+        sections += `  Verse ${i}:\n    ^Line one\n    ^Line two\n    ^Line three\n\n`;
+      }
+      const source = `Long Credited Song [C]
+  owner: Writers & Publishers LLC
+  license: CC BY-NC 4.0
+  verse: C
+
+Sections:
+${sections}`;
+      const result = songToHtml(source);
+      const pageCount = (result.html.match(/data-page="\d+"/g) || []).length;
+      const footerCount = (result.html.match(/class="s2h-page-footer"/g) || []).length;
+      const ownerCount = (result.html.match(/&copy; Writers &amp; Publishers LLC/g) || []).length;
+      const licenseCount = (result.html.match(/CC BY-NC 4\.0/g) || []).length;
+
+      expect(footerCount).toBe(pageCount);
+      expect(ownerCount).toBe(pageCount);
+      expect(licenseCount).toBe(pageCount);
+    });
+
+    test('renders a footer when only a license is supplied', () => {
+      const source = `Licensed Song [C]
+  license: Public Domain
+  verse: C
+
+Sections:
+  Verse 1:
+    ^Hello`;
+      const result = songToHtml(source);
+
+      expect(result.html).toContain('<footer class="s2h-page-footer"><span class="s2h-footer-license">Public Domain</span></footer>');
     });
   });
 });
