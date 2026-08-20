@@ -13,6 +13,8 @@ Title
   key: C
   tempo: 128
   time: 4/4
+  owner: Example Music LLC
+  license: CC BY-SA 4.0
   
   verses: A B C  D E F
   chorus: D E F  A B C
@@ -69,6 +71,8 @@ Arrangements:
     * `tempo`
     * `time`
     * `author`
+    * `owner` (rendered as a copyright notice in every page footer)
+    * `license` (rendered in every page footer)
     * Other keys are presumed to be section names for chord charts.
       * Any chords after the section-name `<song-section-name>:` are assumed to be chords for that section- even if they span multiple lines.
       * Groups of chords in parentheses can be repeated by a following xN, where N is the number of times to repeat.

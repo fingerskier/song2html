@@ -49,6 +49,8 @@ Built-in metadata keys (all optional):
 | `key:` | Musical key | `key: G` |
 | `tempo:` | BPM (number) | `tempo: 120` |
 | `time:` | Time signature | `time: 4/4` |
+| `owner:` | Copyright owner shown in every page footer | `owner: Example Music LLC` |
+| `license:` | License shown in every page footer | `license: CC BY-SA 4.0` |
 
 ```
 Amazing Grace [G]
@@ -56,6 +58,8 @@ Amazing Grace [G]
   key: G
   tempo: 72
   time: 3/4
+  owner: Example Music LLC
+  license: CC BY-SA 4.0
 ```
 
 ---
@@ -278,11 +282,22 @@ Content is paginated into `<section class="s2h-page">` elements:
 ```html
 <section class="s2h-meta">
   <h2 class="s2h-meta-title">Amazing Grace</h2>
+  <p class="s2h-meta-authors">John Newton</p>
   <p class="s2h-meta-key"><strong>Key:</strong> G</p>
   <p class="s2h-meta-tempo"><strong>Tempo:</strong> 72</p>
   <p class="s2h-meta-time"><strong>Time:</strong> 3/4</p>
-  <p class="s2h-meta-authors"><strong>Author:</strong> John Newton</p>
 </section>
+```
+
+The title heading is always emitted. When `author` is present, it is rendered
+immediately beneath the title as subtext. If `owner` or `license` is present,
+every generated page ends with a footer containing the applicable values:
+
+```html
+<footer class="s2h-page-footer">
+  <span class="s2h-footer-owner">&copy; Example Music LLC</span>
+  <span class="s2h-footer-license">CC BY-SA 4.0</span>
+</footer>
 ```
 
 ### Chords Summary
