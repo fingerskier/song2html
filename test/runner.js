@@ -163,7 +163,7 @@ ${result.html}
 // Run tests
 import('./index.test.js').then(() => {
   printSummary();
-  generateFixtureOutputs();
+  if (process.env.SONG2HTML_UPDATE_FIXTURES === '1') generateFixtureOutputs();
 }).catch(err => {
   console.error('Error loading tests:', err);
   process.exit(1);

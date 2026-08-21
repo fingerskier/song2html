@@ -173,7 +173,7 @@ Arrangements:
   * `/`
     * F/A or F/5 or 4/5 - bass note
       * indicates a chord inversion with the A or 5 as the bass note
-      * in slash chords the numbers are relative to the _chord_ root and rendered thusly
+      * numeric bass notes are scale degrees relative to the song key and render as notes without chord qualities
   * `\`
     * F\D or F\3 or 4\3 - treble note
       * indicates a chord inversion with the D or 3 as the treble note
@@ -186,3 +186,11 @@ Arrangements:
   * `N#`
     * A7 or 67 - position indicator
       * a number after a chord indicates the position of the chord on the fretboard, or octave on piano
+
+## MCP tools and filesystem policy
+
+Run the stdio MCP server with `npm run start:mcp`. Its parse/read tools support an optional `include` list so callers can omit generated HTML or source and conserve model context. `render_html` supports `print`, `stage`, `compact`, `large-type`, and `dark` themes.
+
+The file tools are intended for a trusted local MCP process. Set `SONG2HTML_LIBRARY_ROOT=/absolute/path/to/library` to confine all read, write, and list operations to one directory. Writes are atomic, refuse existing destinations unless `overwrite: true`, and refuse error-severity diagnostics unless `allowInvalid: true`; `dryRun: true` validates without writing.
+
+`npm test` is read-only. Regenerate checked-in fixture HTML explicitly with `npm run fixtures:update`.

@@ -5,11 +5,16 @@
  * @returns {{ html: string, arrangements: string[], song: { title: string, key: string|null, tempo: number|null, authors: string[], time: string|null, owner: string|null, license: string|null }, errata: Array<{ type: string, message: string, section?: string, line?: number }> }} An object containing the generated HTML, available arrangement names, song metadata, and parsing errata.
  */
 export default function songToHtml(source, arrangementName = '') {
+  if (typeof source !== 'string') throw new TypeError('source must be a string')
+  const LIMITS = Object.freeze({ sourceLength: 1_000_000, lines: 20_000, repeat: 128, expandedChords: 10_000, sections: 1_000, arrangementEntries: 5_000 })
+  if (source.length > LIMITS.sourceLength) throw new RangeError(`source exceeds ${LIMITS.sourceLength} characters`)
   const lines = source.replace(/\r\n?/g, '\n').split('\n')
+  if (lines.length > LIMITS.lines) throw new RangeError(`source exceeds ${LIMITS.lines} lines`)
   let idx = 0
 
   // Errata tracking for parsing issues
   const errata = []
+  const issue = (severity, type, message, details = {}) => errata.push({ severity, type, message, ...details })
 
   // 1. Title & key -----------------------------------------------------------
   const titleLine = (lines[idx] ?? '').trim()
@@ -23,7 +28,11 @@ export default function songToHtml(source, arrangementName = '') {
   // prefer flats for flat keys
   const flats = { 'C#': 'Db', 'D#': 'Eb', 'F#': 'Gb', 'G#': 'Ab', 'A#': 'Bb' }
   const majorIntervals = [0, 2, 4, 5, 7, 9, 11]
-  const qualities = ['', 'm', 'm', '', '', 'm', 'dim']
+  const majorQualities = ['', 'm', 'm', '', '', 'm', 'dim']
+  const minorIntervals = [0, 2, 3, 5, 7, 8, 10]
+  const minorQualities = ['m', 'dim', '', 'm', 'm', '', '']
+  const flatKeys = ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb', 'Dm', 'Gm', 'Cm', 'Fm', 'Bbm', 'Ebm', 'Abm']
+  const preferFlats = (key) => /b/.test(key || '') || flatKeys.includes(key)
 
   /**
    * Normalizes a musical key by converting Unicode sharp/flat symbols to ASCII.
@@ -45,7 +54,7 @@ export default function songToHtml(source, arrangementName = '') {
     if (index > -1) return index
     // flats
     const alt = { DB: 'C#', EB: 'D#', GB: 'F#', AB: 'G#', BB: 'A#' }[up]
-    return alt ? chromatic.indexOf(alt) : 0
+    return alt ? chromatic.indexOf(alt) : -1
   }
 
   /**
@@ -55,10 +64,15 @@ export default function songToHtml(source, arrangementName = '') {
    */
   function degreeToChord(num) {
     if (!songKey) return String(num) // no key ⇒ leave numeric
+    if (!Number.isInteger(num) || num < 1 || num > 7) return String(num)
     const deg = (num - 1) % 7
-    const rootSemi = (semitone(songKey) + majorIntervals[deg]) % 12
+    const isMinor = songKey.endsWith('m')
+    const baseKey = songKey.replace(/m$/, '')
+    const intervals = isMinor ? minorIntervals : majorIntervals
+    const qualities = isMinor ? minorQualities : majorQualities
+    const rootSemi = (semitone(baseKey) + intervals[deg]) % 12
     let root = chromatic[rootSemi]
-    if (/b$/.test(songKey) || ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb'].includes(songKey)) {
+    if (preferFlats(songKey)) {
       root = flats[root] || root // prefer flats in flat keys
     }
     return root + qualities[deg]
@@ -71,10 +85,12 @@ export default function songToHtml(source, arrangementName = '') {
    */
   function degreeToNote(num) {
     if (!songKey) return String(num)
+    if (!Number.isInteger(num) || num < 1 || num > 7) return String(num)
     const deg = (num - 1) % 7
-    const rootSemi = (semitone(songKey.replace(/m$/, '')) + majorIntervals[deg]) % 12
+    const intervals = songKey.endsWith('m') ? minorIntervals : majorIntervals
+    const rootSemi = (semitone(songKey.replace(/m$/, '')) + intervals[deg]) % 12
     let root = chromatic[rootSemi]
-    if (/b$/.test(songKey) || ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb'].includes(songKey.replace(/m$/, ''))) {
+    if (preferFlats(songKey)) {
       root = flats[root] || root
     }
     return root
@@ -91,7 +107,7 @@ export default function songToHtml(source, arrangementName = '') {
     const base = isMinor ? songKey.slice(0, -1) : songKey
     const shifted = (semitone(base) + offset % 12 + 12) % 12
     let note = chromatic[shifted]
-    if (/b$/.test(base) || ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb'].includes(base)) {
+    if (preferFlats(songKey)) {
       note = flats[note] || note
     }
     return isMinor ? note + 'm' : note
@@ -110,7 +126,7 @@ export default function songToHtml(source, arrangementName = '') {
     const rootSemi = semitone(chordRoot)
     const noteSemi = (rootSemi + chordIntervals[interval % 8]) % 12
     let note = chromatic[noteSemi]
-    if (/b$/.test(songKey) || ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb'].includes(songKey?.replace(/m$/, '') || '')) {
+    if (preferFlats(songKey)) {
       note = flats[note] || note
     }
     return note
@@ -160,7 +176,7 @@ export default function songToHtml(source, arrangementName = '') {
     if (!match) return tok
     const chord = degreeToChord(+match[1])
     let out = chord
-    if (match[2]) out += '/' + degreeToChord(+match[2])
+    if (match[2]) out += '/' + degreeToNote(+match[2])
     out += match[3] || ''
     return out
   }
@@ -187,6 +203,13 @@ export default function songToHtml(source, arrangementName = '') {
   let timeSig = null
   let owner = null
   let license = null
+  let foundSectionsHeader = false
+
+  const validKey = (key) => /^[A-G](?:#|b)?m?$/.test(key) && semitone(key.replace(/m$/, '')) >= 0
+  const bracketedKey = titleLine.match(/\[([^\]]+)]$/)
+  if (bracketedKey && !keyMatch) {
+    issue('error', 'invalid-key', `Invalid musical key: "${bracketedKey[1]}"`, { line: 1 })
+  }
 
   while (idx < lines.length && !/^\s*Sections:/i.test(lines[idx])) {
     const meta = lines[idx].match(/^\s*(key|tempo|author|time|owner|license):\s*(.+)$/i)
@@ -196,13 +219,17 @@ export default function songToHtml(source, arrangementName = '') {
       switch (tag) {
         case 'key':
           songKey = normalizeKey(val)
+          if (!validKey(songKey)) {
+            issue('error', 'invalid-key', `Invalid musical key: "${val}"`, { line: idx + 1 })
+            songKey = null
+          }
           break
         case 'tempo': {
           const n = parseInt(val, 10)
           if (!Number.isNaN(n)) {
             tempo = n
           } else {
-            errata.push({ type: 'invalid-tempo', message: `Invalid tempo value: "${val}"`, line: idx + 1 })
+            issue('error', 'invalid-tempo', `Invalid tempo value: "${val}"`, { line: idx + 1 })
           }
           break
         }
@@ -224,7 +251,7 @@ export default function songToHtml(source, arrangementName = '') {
       idx++
       continue
     }
-    const chordLine = lines[idx].match(/^[\s\t]*([\w -]+):\s*(.+)$/)
+    const chordLine = lines[idx].match(/^\s*([^:\r\n]+):\s*(.+)$/u)
     if (chordLine) {
       const key = chordLine[1].trim().toLowerCase()
       const display = [chordLine[2].trim()]
@@ -232,32 +259,36 @@ export default function songToHtml(source, arrangementName = '') {
       while (
         j < lines.length &&
         /^\s{2,}\S/.test(lines[j]) &&
-        !/^[\w -]+:\s*/.test(lines[j].trim())
+        !/^[^:\r\n]+:\s*/u.test(lines[j].trim())
       ) {
         display.push(lines[j].trim())
         j++
       }
       idx = j - 1
       chordDisplay[key] = display
-      chordDefs[key] = expandProg(display.join(' '))
+      chordDefs[key] = expandProg(display.join(' '), idx + 1)
+    } else if (lines[idx].trim()) {
+      issue('warning', 'unrecognized-line', `Unrecognized metadata or chord line: "${lines[idx].trim()}"`, { line: idx + 1 })
     }
     idx++
   }
 
   // Check for missing key after all metadata is parsed
   if (!songKey) {
-    errata.push({ type: 'missing-key', message: 'No musical key specified in title or metadata' })
+    issue('warning', 'missing-key', 'No musical key specified in title or metadata')
   }
 
   // 5. Lyric sections --------------------------------------------------------
   const lyricSections = {}
   const sectionTranspose = {}
   const sectionOrder = []
-  const sectionHeaderRE = /^\s{2,}([\w -]+):\s*$/
+  const sectionHeaderRE = /^\s{2,}([^:\r\n]+):\s*$/u
+  if (idx < lines.length && /^\s*Sections:/i.test(lines[idx])) foundSectionsHeader = true
   while (idx < lines.length && !/^\s*Arrangements:/i.test(lines[idx])) {
     const match = lines[idx].match(sectionHeaderRE)
     if (match) {
       const name = match[1].trim()
+      if (sectionOrder.length >= LIMITS.sections) throw new RangeError(`song exceeds ${LIMITS.sections} sections`)
       sectionOrder.push(name)
       idx++
       const lns = []
@@ -277,18 +308,24 @@ export default function songToHtml(source, arrangementName = '') {
         }
         idx++
       }
-      lyricSections[name] = lns
+      if (Object.hasOwn(lyricSections, name)) {
+        issue('error', 'duplicate-section', `Section "${name}" is defined more than once; the first definition is retained`, { section: name })
+      } else {
+        lyricSections[name] = lns
+      }
     } else {
       idx++
     }
   }
+
+  if (!foundSectionsHeader) issue('error', 'missing-sections', 'Required Sections: header is missing')
 
   // 6. Arrangements ----------------------------------------------------------
   const arrangements = {}
   if (idx < lines.length && /^\s*Arrangements:/i.test(lines[idx])) {
     idx++
     while (idx < lines.length) {
-      const headMatch = lines[idx].match(/^(\s{2,})([\w -]+)\s*:?\s*$/)
+      const headMatch = lines[idx].match(/^(\s{2,})([^:\r\n]+)\s*:?\s*$/u)
       if (headMatch) {
         const indent = headMatch[1].length
         const arrName = headMatch[2].trim()
@@ -307,7 +344,10 @@ export default function songToHtml(source, arrangementName = '') {
           const ln = lines[idx]
           const lnIndent = (/^(\s*)/.exec(ln) || [''])[0].length
           if (lnIndent <= indent) break
-          if (ln.trim()) secs.push(ln.trim())
+          if (ln.trim()) {
+            if (secs.length >= LIMITS.arrangementEntries) throw new RangeError(`arrangement exceeds ${LIMITS.arrangementEntries} entries`)
+            secs.push(ln.trim())
+          }
           idx++
         }
         arrangements[arrName] = secs
@@ -317,8 +357,13 @@ export default function songToHtml(source, arrangementName = '') {
     }
   }
   if (!Object.keys(arrangements).length) arrangements.default = sectionOrder
-  const chosenRaw =
-    arrangements[arrangementName] || arrangements[Object.keys(arrangements)[0]]
+  let chosenRaw
+  if (arrangementName && !Object.hasOwn(arrangements, arrangementName)) {
+    issue('error', 'unknown-arrangement', `Arrangement "${arrangementName}" does not exist`)
+    chosenRaw = []
+  } else {
+    chosenRaw = arrangements[arrangementName] || arrangements[Object.keys(arrangements)[0]]
+  }
 
   // Extract inline <transpose> directives from arrangement entries
   const arrTranspose = {}
@@ -339,12 +384,12 @@ export default function songToHtml(source, arrangementName = '') {
     // Track missing chord definitions (only once per section type)
     if (!chordDisplay[secType] && !trackedMissingChords.has(secType)) {
       trackedMissingChords.add(secType)
-      errata.push({ type: 'missing-chords', message: `No chord definition found for section type "${secType}"`, section: sec })
+      issue('warning', 'missing-chords', `No chord definition found for section type "${secType}"`, { section: sec })
     }
     // Track missing lyric sections
     if (!lyricSections[sec] && !trackedMissingSections.has(sec)) {
       trackedMissingSections.add(sec)
-      errata.push({ type: 'missing-section', message: `Section "${sec}" referenced in arrangement but not defined in Sections`, section: sec })
+      issue('error', 'missing-section', `Section "${sec}" referenced in arrangement but not defined in Sections`, { section: sec })
     }
   })
 
@@ -428,7 +473,7 @@ export default function songToHtml(source, arrangementName = '') {
 
   const sectionOccurrences = {}
   chosenArr.forEach((sec, i) => {
-    const sectionSlug = sec.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+    const sectionSlug = sec.normalize('NFKC').toLowerCase().replace(/[^\p{Letter}\p{Number}]+/gu, '-').replace(/^-|-$/g, '') || 'section'
     sectionOccurrences[sectionSlug] = (sectionOccurrences[sectionSlug] || 0) + 1
     const occurrence = sectionOccurrences[sectionSlug]
     const sectionId = occurrence > 1 ? `${sectionSlug}-${occurrence}` : sectionSlug
@@ -449,11 +494,12 @@ export default function songToHtml(source, arrangementName = '') {
     const caretCount = lns.reduce((count, line) => count + (line.match(/\^/g) || []).length, 0)
     // Track chord/caret mismatch (when chords must cycle)
     if (caretCount > 0 && chordArr.length > 0 && caretCount > chordArr.length) {
-      errata.push({
-        type: 'chord-caret-mismatch',
-        message: `Section "${sec}" has ${caretCount} chord markers but only ${chordArr.length} chords defined (chords will cycle)`,
-        section: sec
-      })
+      issue(
+        'warning',
+        'chord-caret-mismatch',
+        `Section "${sec}" has ${caretCount} chord markers but only ${chordArr.length} chords defined (chords will cycle)`,
+        { section: sec },
+      )
     }
 
     const openSection = () => {
@@ -494,6 +540,7 @@ export default function songToHtml(source, arrangementName = '') {
         },
         afterFlush: () => {
           openSection()
+          appendToPage(`<h3 class="s2h-section-title s2h-section-title-continued">${esc(sec)} <span class="s2h-continued-label">(continued)</span></h3>`, LINE_WEIGHTS.sectionHeading)
         },
       })
     })
@@ -572,31 +619,28 @@ export default function songToHtml(source, arrangementName = '') {
    * @param {string} exp - The chord progression expression (e.g., "(1 4) x2 5").
    * @returns {string[]} Array of expanded chord tokens.
    */
-  function expandProg(exp) {
-    const tokens = exp.split(/\s+/).filter(Boolean)
+  function expandProg(exp, line) {
     const out = []
-    for (let i = 0; i < tokens.length; i++) {
-      let token = tokens[i]
-      if (token.startsWith('(')) {
-        const group = []
-        if (token.endsWith(')')) {
-          group.push(token.slice(1, -1))
-        } else {
-          group.push(token.slice(1))
-          while (++i < tokens.length && !tokens[i].endsWith(')')) {
-            group.push(tokens[i])
-          }
-          if (i < tokens.length) group.push(tokens[i].slice(0, -1))
+    const tokenRE = /\(([^()]*)\)\s*(?:x\s*(\d+))?|(\S+)/gi
+    let match
+    while ((match = tokenRE.exec(exp))) {
+      if (match[1] !== undefined) {
+        const group = match[1].trim().split(/\s+/).filter(Boolean)
+        const repeat = match[2] ? Number(match[2]) : 1
+        if (repeat < 1 || repeat > LIMITS.repeat) {
+          issue('error', 'invalid-repeat', `Repeat multiplier x${repeat} must be between 1 and ${LIMITS.repeat}`, { line })
+          continue
         }
-        let repeat = 1
-        if (i + 1 < tokens.length && /^x\d+$/i.test(tokens[i + 1])) {
-          repeat = +tokens[++i].slice(1)
+        if (out.length + group.length * repeat > LIMITS.expandedChords) throw new RangeError(`progression exceeds ${LIMITS.expandedChords} expanded chords`)
+        for (let n = 0; n < repeat; n++) out.push(...group)
+      } else if (!/^x\d+$/i.test(match[3])) {
+        if (/^[0-9](?:\/[0-9])?/.test(match[3]) && !/^[1-7](?:\/[1-7])?/.test(match[3])) {
+          issue('error', 'invalid-degree', `Nashville scale degrees must be between 1 and 7: "${match[3]}"`, { line })
         }
-        while (repeat--) out.push(...group)
-      } else if (!/^x\d+$/i.test(token)) {
-        out.push(token)
+        out.push(match[3])
       }
     }
+    if (/[()]/.test(exp.replace(/\([^()]*\)/g, ''))) issue('error', 'malformed-repeat', `Malformed repetition expression: "${exp}"`, { line })
     return out
   }
 }

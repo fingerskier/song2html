@@ -1,9 +1,32 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
-import { readFile, writeFile, readdir, stat } from 'node:fs/promises'
-import { join, extname, resolve } from 'node:path'
+import { readFile, writeFile, rename, readdir, stat, mkdir } from 'node:fs/promises'
+import { join, extname, resolve, relative, dirname } from 'node:path'
 import songToHtml from '../index.js'
+import { renderStandalone, THEMES } from './render.js'
+
+const LIBRARY_ROOT = process.env.SONG2HTML_LIBRARY_ROOT ? resolve(process.env.SONG2HTML_LIBRARY_ROOT) : null
+const OUTPUT_FIELDS = ['html', 'arrangements', 'song', 'errata']
+
+function safePath(path) {
+  const resolvedPath = resolve(path)
+  if (LIBRARY_ROOT) {
+    const rel = relative(LIBRARY_ROOT, resolvedPath)
+    if (rel.startsWith('..') || rel.includes(`..${process.platform === 'win32' ? '\\' : '/'}`)) {
+      throw new Error(`Path is outside configured SONG2HTML_LIBRARY_ROOT: ${LIBRARY_ROOT}`)
+    }
+  }
+  return resolvedPath
+}
+
+function selectResult(result, include, extras = {}) {
+  const fields = include === undefined ? OUTPUT_FIELDS : include
+  return Object.fromEntries([
+    ...Object.entries(extras),
+    ...fields.filter((field) => Object.hasOwn(result, field)).map((field) => [field, result[field]]),
+  ])
+}
 
 const server = new McpServer({
   name: 'song2html',
@@ -18,13 +41,14 @@ server.tool(
   {
     source: z.string().describe('The raw song2html source text'),
     arrangement: z.string().optional().describe('Optional arrangement name to render'),
+    include: z.array(z.enum(OUTPUT_FIELDS)).optional().describe('Result fields to include; defaults to all'),
   },
-  async ({ source, arrangement }) => {
+  async ({ source, arrangement, include }) => {
     const result = songToHtml(source, arrangement || '')
     return {
       content: [{
         type: 'text',
-        text: JSON.stringify(result, null, 2),
+        text: JSON.stringify(selectResult(result, include), null, 2),
       }],
     }
   },
@@ -41,9 +65,9 @@ server.tool(
     const { song, arrangements, errata } = songToHtml(source)
     const issues = [...errata]
 
-    if (!song.title) issues.push({ type: 'missing-title', message: 'No title found on first line' })
+    if (!song.title) issues.push({ severity: 'error', type: 'missing-title', message: 'No title found on first line' })
 
-    const valid = issues.length === 0
+    const valid = !issues.some((entry) => entry.severity === 'error')
     return {
       content: [{
         type: 'text',
@@ -63,6 +87,8 @@ server.tool(
     author: z.string().optional().describe('Comma-separated author names'),
     tempo: z.number().optional().describe('BPM'),
     time: z.string().optional().describe('Time signature (e.g. "4/4", "3/4")'),
+    owner: z.string().optional().describe('Copyright owner'),
+    license: z.string().optional().describe('License identifier or name'),
     chords: z.record(z.string(), z.string()).describe('Map of section type to chord progression (e.g. {"verse": "G C D G", "chorus": "C D Em G"})'),
     sections: z.array(z.object({
       name: z.string().describe('Section name (e.g. "Verse 1", "Chorus")'),
@@ -71,7 +97,7 @@ server.tool(
     })).describe('Ordered lyric sections'),
     arrangements: z.record(z.string(), z.array(z.string())).optional().describe('Named arrangements mapping to arrays of section names'),
   },
-  async ({ title, key, author, tempo, time, chords, sections, arrangements }) => {
+  async ({ title, key, author, tempo, time, owner, license, chords, sections, arrangements }) => {
     const lines = []
 
     // Title line
@@ -81,6 +107,8 @@ server.tool(
     if (author) lines.push(`  author: ${author}`)
     if (tempo != null) lines.push(`  tempo: ${tempo}`)
     if (time) lines.push(`  time: ${time}`)
+    if (owner) lines.push(`  owner: ${owner}`)
+    if (license) lines.push(`  license: ${license}`)
 
     // Blank line before chords
     lines.push('')
@@ -135,14 +163,15 @@ server.tool(
   {
     path: z.string().describe('Absolute path to the song file'),
     arrangement: z.string().optional().describe('Optional arrangement name'),
+    include: z.array(z.enum(['source', ...OUTPUT_FIELDS])).optional().describe('Result fields to include; defaults to all'),
   },
-  async ({ path, arrangement }) => {
-    const source = await readFile(resolve(path), 'utf-8')
+  async ({ path, arrangement, include }) => {
+    const source = await readFile(safePath(path), 'utf-8')
     const result = songToHtml(source, arrangement || '')
     return {
       content: [{
         type: 'text',
-        text: JSON.stringify({ source, ...result }, null, 2),
+        text: JSON.stringify(selectResult(result, include?.filter((field) => field !== 'source'), include?.includes('source') || !include ? { source } : {}), null, 2),
       }],
     }
   },
@@ -155,14 +184,33 @@ server.tool(
   {
     path: z.string().describe('Absolute path to write the song file'),
     source: z.string().describe('The song2html source text to write'),
+    allowInvalid: z.boolean().default(false).describe('Write despite error-severity diagnostics'),
+    overwrite: z.boolean().default(false).describe('Replace an existing file'),
+    dryRun: z.boolean().default(false).describe('Validate without writing'),
   },
-  async ({ path, source }) => {
+  async ({ path, source, allowInvalid, overwrite, dryRun }) => {
     const { song, errata } = songToHtml(source)
-    await writeFile(resolve(path), source, 'utf-8')
+    const destination = safePath(path)
+    const hasErrors = errata.some((entry) => entry.severity === 'error')
+    if (hasErrors && !allowInvalid) throw new Error('Song has error-severity diagnostics; pass allowInvalid=true to override')
+    if (!overwrite) {
+      try {
+        await stat(destination)
+        throw new Error(`File already exists: ${destination}; pass overwrite=true to replace it`)
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error
+      }
+    }
+    if (!dryRun) {
+      await mkdir(dirname(destination), { recursive: true })
+      const temporary = `${destination}.tmp-${process.pid}-${Date.now()}`
+      await writeFile(temporary, source, { encoding: 'utf-8', mode: 0o600 })
+      await rename(temporary, destination)
+    }
     return {
       content: [{
         type: 'text',
-        text: JSON.stringify({ written: resolve(path), song, errata }, null, 2),
+        text: JSON.stringify({ written: dryRun ? null : destination, dryRun, song, errata }, null, 2),
       }],
     }
   },
@@ -176,19 +224,22 @@ server.tool(
     directory: z.string().describe('Absolute path to the directory to scan'),
   },
   async ({ directory }) => {
-    const dir = resolve(directory)
+    const dir = safePath(directory)
     const entries = await readdir(dir)
     const songs = []
 
-    for (const entry of entries) {
-      if (extname(entry) !== '.txt') continue
+    const candidates = entries.filter((entry) => extname(entry).toLowerCase() === '.txt')
+    const concurrency = 8
+    for (let start = 0; start < candidates.length; start += concurrency) {
+      const batch = candidates.slice(start, start + concurrency)
+      const parsed = await Promise.all(batch.map(async (entry) => {
       const fullPath = join(dir, entry)
       const info = await stat(fullPath)
-      if (!info.isFile()) continue
+      if (!info.isFile()) return null
 
       const source = await readFile(fullPath, 'utf-8')
       const { song, errata } = songToHtml(source)
-      songs.push({
+      return {
         file: entry,
         path: fullPath,
         title: song.title,
@@ -197,7 +248,9 @@ server.tool(
         tempo: song.tempo,
         time: song.time,
         issues: errata.length,
-      })
+      }
+      }))
+      songs.push(...parsed.filter(Boolean))
     }
 
     return {
@@ -300,8 +353,8 @@ server.tool(
 
       // Transpose chord definition lines (before Sections:)
       if (!inSections && !inArrangements) {
-        const chordLine = line.match(/^(\s*[\w -]+:\s*)(.+)$/)
-        if (chordLine && !line.match(/^\s*(key|tempo|author|time):/i) && result.length > 0) {
+        const chordLine = line.match(/^(\s*[^:\r\n]+:\s*)(.+)$/u)
+        if (chordLine && !line.match(/^\s*(key|tempo|author|time|owner|license):/i) && result.length > 0) {
           const useFlats = /b/i.test(source.match(/\[([A-Ga-g][#♯b♭]?m?)]/)?.[ 1] || '')
           result.push(chordLine[1] + transposeLine(chordLine[2], steps, useFlats))
           continue
@@ -328,39 +381,13 @@ server.tool(
   'render_html',
   'Render song2html source text to a complete standalone HTML page with embedded styles for previewing in a browser.',
   {
-    source: z.string().describe('The song2html source text'),
+    source: z.string().describe('The raw song2html source text'),
     arrangement: z.string().optional().describe('Optional arrangement name'),
+    theme: z.enum(THEMES).optional().describe('Built-in rendering theme'),
+    language: z.string().optional().describe('BCP 47 document language (defaults to en)'),
   },
-  async ({ source, arrangement }) => {
-    const { html, song } = songToHtml(source, arrangement || '')
-    const page = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${song.title || 'Song'}</title>
-<style>
-  body { font-family: Georgia, 'Times New Roman', serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
-  .s2h-song { }
-  .s2h-page { margin-bottom: 2rem; page-break-after: always; }
-  .s2h-meta { margin-bottom: 1.5rem; border-bottom: 1px solid #ccc; padding-bottom: 1rem; }
-  .s2h-meta-title { margin: 0 0 0.5rem; font-size: 1.8rem; }
-  .s2h-meta p { margin: 0.2rem 0; color: #555; }
-  .s2h-chords { background: #f8f8f0; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1.5rem; }
-  .s2h-chords-title { margin: 0 0 0.5rem; font-size: 1.1rem; }
-  .s2h-chord-line { margin: 0.3rem 0; }
-  .s2h-chord-section-label { font-weight: bold; margin-right: 0.5rem; color: #333; }
-  .s2h-chord-line .s2h-chord { display: inline-block; background: #e8e0d0; padding: 0.1rem 0.4rem; border-radius: 3px; margin: 0 0.15rem; font-weight: bold; font-size: 0.95rem; }
-  .s2h-section { margin-bottom: 1.5rem; }
-  .s2h-section-title { font-size: 1.1rem; color: #666; margin: 0 0 0.5rem; border-left: 3px solid #999; padding-left: 0.5rem; }
-  .s2h-lyric-line { margin: 0.4rem 0; font-size: 1.1rem; position: relative; padding-top: 1.2rem; }
-  .s2h-lyric-line .s2h-chord { position: relative; top: -0.1rem; font-weight: bold; color: #b44; font-size: 0.9rem; margin-right: 1px; }
-</style>
-</head>
-<body>
-${html}
-</body>
-</html>`
+  async ({ source, arrangement, theme, language }) => {
+    const { page } = renderStandalone(source, arrangement || '', { theme, language })
 
     return {
       content: [{

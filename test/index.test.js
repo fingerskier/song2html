@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import songToHtml from '../index.js';
+import { renderStandalone } from '../src/render.js';
 import { describe, test, expect } from './runner.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -198,7 +199,7 @@ Sections:
       const source = fixture('slash-chords.txt');
       const result = songToHtml(source);
 
-      // In key of C: 1/5 = C/G, 4/1 = F/C, 5/2 = G/Dm
+      // In key of C: 1/5 = C/G, 4/1 = F/C, 5/2 = G/D
       expect(result.html).toMatch(/C\/G/);
       expect(result.html).toMatch(/F\/C/);
     });
@@ -927,5 +928,69 @@ Sections:
     expect(chords[0]).toContain('C');
     expect(chords[1]).toContain('F');
     expect(chords[2]).toContain('G');
+  });
+});
+
+describe('review regression coverage', () => {
+  const chordText = (result) => [...result.html.matchAll(/<sup class="s2h-chord">([^<]*)<\/sup>/g)].map((match) => match[1]);
+  const song = (key, progression, lyrics = '^a ^b ^c ^d ^e ^f ^g') => `Regression [${key}]
+  verse: ${progression}
+
+Sections:
+  Verse:
+    ${lyrics}`;
+
+  test('uses natural-minor degrees rooted on the minor tonic', () => {
+    expect(chordText(songToHtml(song('Am', '1 2 3 4 5 6 7')))).toEqual(['Am', 'Bdim', 'C', 'Dm', 'Em', 'F', 'G']);
+    expect(chordText(songToHtml(song('Dm', '1 2 3 4 5 6 7')))).toEqual(['Dm', 'Edim', 'F', 'Gm', 'Am', 'Bb', 'C']);
+    expect(chordText(songToHtml(song('F#m', '1 2 3 4 5 6 7')))).toEqual(['F#m', 'G#dim', 'A', 'Bm', 'C#m', 'D', 'E']);
+  });
+
+  test('renders Nashville slash denominator as a bass note', () => {
+    expect(chordText(songToHtml(song('C', '5/2', '^a')))).toEqual(['G/D']);
+  });
+
+  test('expands compact and spaced repetition forms exactly', () => {
+    expect(chordText(songToHtml(song('C', '(C G)x2', '^a ^b ^c ^d')))).toEqual(['C', 'G', 'C', 'G']);
+    expect(chordText(songToHtml(song('C', '(C G) x2', '^a ^b ^c ^d')))).toEqual(['C', 'G', 'C', 'G']);
+  });
+
+  test('rejects unknown arrangements instead of silently falling back', () => {
+    const result = songToHtml(song('C', 'C', '^a'), 'Typo');
+    expect(result.errata.find((entry) => entry.type === 'unknown-arrangement').severity).toBe('error');
+    expect(chordText(result)).toEqual([]);
+  });
+
+  test('diagnoses duplicate sections and retains the first definition', () => {
+    const result = songToHtml(`Duplicate [C]
+  verse: C
+Sections:
+  Verse:
+    ^FIRST
+  Verse:
+    ^SECOND`);
+    expect(result.errata.find((entry) => entry.type === 'duplicate-section').severity).toBe('error');
+    expect(result.html).toContain('FIRST');
+    expect(result.html).not.toContain('SECOND');
+  });
+
+  test('diagnoses invalid degrees, excessive repeats, and missing structure', () => {
+    const invalid = songToHtml(song('C', '0 8 (C G)x129', '^a'));
+    expect(invalid.errata.some((entry) => entry.type === 'invalid-degree')).toBe(true);
+    expect(invalid.errata.some((entry) => entry.type === 'invalid-repeat')).toBe(true);
+    expect(songToHtml('No structure [C]').errata.some((entry) => entry.type === 'missing-sections')).toBe(true);
+  });
+
+  test('escapes standalone document titles and ships print-safe themes', () => {
+    const source = `</title><script>alert(1)</script> [C]
+  verse: C
+Sections:
+  Verse:
+    ^a`;
+    const { page } = renderStandalone(source, '', { theme: 'stage' });
+    expect(page).not.toContain('<title></title><script>');
+    expect(page).toContain('<title>&lt;/title&gt;&lt;script&gt;alert(1)&lt;/script&gt;</title>');
+    expect(page).toContain('data-s2h-theme="stage"');
+    expect(page).toContain('.s2h-page:last-child { break-after: auto; }');
   });
 });
