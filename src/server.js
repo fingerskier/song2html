@@ -5,9 +5,13 @@ import { readFile, writeFile, rename, readdir, stat, mkdir } from 'node:fs/promi
 import { join, extname, resolve, relative, dirname } from 'node:path'
 import songToHtml from '../index.js'
 import { renderStandalone, THEMES } from './render.js'
+import { createSongAst, formatKey, parseSong, serializeSong, transposeSongAst, validateSong } from './ast.js'
+import { detectFormat, importSong } from './importers.js'
 
 const LIBRARY_ROOT = process.env.SONG2HTML_LIBRARY_ROOT ? resolve(process.env.SONG2HTML_LIBRARY_ROOT) : null
 const OUTPUT_FIELDS = ['html', 'arrangements', 'song', 'errata']
+const PARSE_FIELDS = [...OUTPUT_FIELDS, 'ast']
+const packageMetadata = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
 
 function safePath(path) {
   const resolvedPath = resolve(path)
@@ -30,7 +34,7 @@ function selectResult(result, include, extras = {}) {
 
 const server = new McpServer({
   name: 'song2html',
-  version: '1.0.0',
+  version: packageMetadata.version,
   description: 'Read, write, parse, validate, and convert song chord charts using the song2html format.',
 })
 
@@ -41,10 +45,11 @@ server.tool(
   {
     source: z.string().describe('The raw song2html source text'),
     arrangement: z.string().optional().describe('Optional arrangement name to render'),
-    include: z.array(z.enum(OUTPUT_FIELDS)).optional().describe('Result fields to include; defaults to all'),
+    include: z.array(z.enum(PARSE_FIELDS)).optional().describe('Result fields to include; defaults to compatibility fields'),
   },
   async ({ source, arrangement, include }) => {
     const result = songToHtml(source, arrangement || '')
+    result.ast = parseSong(source).song
     return {
       content: [{
         type: 'text',
@@ -62,16 +67,13 @@ server.tool(
     source: z.string().describe('The raw song2html source text'),
   },
   async ({ source }) => {
-    const { song, arrangements, errata } = songToHtml(source)
-    const issues = [...errata]
-
-    if (!song.title) issues.push({ severity: 'error', type: 'missing-title', message: 'No title found on first line' })
-
+    const parsed = parseSong(source)
+    const issues = parsed.diagnostics
     const valid = !issues.some((entry) => entry.severity === 'error')
     return {
       content: [{
         type: 'text',
-        text: JSON.stringify({ valid, song, arrangements, issues }, null, 2),
+        text: JSON.stringify({ valid, song: parsed.song, arrangements: parsed.song.arrangements.map((entry) => entry.name), issues }, null, 2),
       }],
     }
   },
@@ -98,59 +100,14 @@ server.tool(
     arrangements: z.record(z.string(), z.array(z.string())).optional().describe('Named arrangements mapping to arrays of section names'),
   },
   async ({ title, key, author, tempo, time, owner, license, chords, sections, arrangements }) => {
-    const lines = []
-
-    // Title line
-    lines.push(key ? `${title} [${key}]` : title)
-
-    // Metadata
-    if (author) lines.push(`  author: ${author}`)
-    if (tempo != null) lines.push(`  tempo: ${tempo}`)
-    if (time) lines.push(`  time: ${time}`)
-    if (owner) lines.push(`  owner: ${owner}`)
-    if (license) lines.push(`  license: ${license}`)
-
-    // Blank line before chords
-    lines.push('')
-
-    // Chord definitions
-    for (const [section, prog] of Object.entries(chords)) {
-      lines.push(`  ${section}: ${prog}`)
-    }
-
-    // Sections
-    lines.push('')
-    lines.push('Sections:')
-    for (const sec of sections) {
-      lines.push(`  ${sec.name}:`)
-      if (sec.transpose) lines.push(`    <transpose ${sec.transpose > 0 ? '+' : ''}${sec.transpose}>`)
-      for (const lyric of sec.lyrics) {
-        lines.push(`    ${lyric}`)
-      }
-      lines.push('')
-    }
-
-    // Arrangements
-    if (arrangements && Object.keys(arrangements).length) {
-      lines.push('Arrangements:')
-      for (const [name, secs] of Object.entries(arrangements)) {
-        lines.push(`  ${name}:`)
-        for (const s of secs) {
-          lines.push(`    ${s}`)
-        }
-        lines.push('')
-      }
-    }
-
-    const source = lines.join('\n')
-
-    // Validate what we generated
+    const ast = createSongAst({ title, key, author, tempo, time, owner, license, chords, sections, arrangements })
+    const source = serializeSong(ast)
     const result = songToHtml(source)
 
     return {
       content: [{
         type: 'text',
-        text: JSON.stringify({ source, song: result.song, errata: result.errata }, null, 2),
+        text: JSON.stringify({ source, ast, song: result.song, errata: validateSong(ast) }, null, 2),
       }],
     }
   },
@@ -163,11 +120,12 @@ server.tool(
   {
     path: z.string().describe('Absolute path to the song file'),
     arrangement: z.string().optional().describe('Optional arrangement name'),
-    include: z.array(z.enum(['source', ...OUTPUT_FIELDS])).optional().describe('Result fields to include; defaults to all'),
+    include: z.array(z.enum(['source', ...PARSE_FIELDS])).optional().describe('Result fields to include; defaults to compatibility fields'),
   },
   async ({ path, arrangement, include }) => {
     const source = await readFile(safePath(path), 'utf-8')
     const result = songToHtml(source, arrangement || '')
+    result.ast = parseSong(source).song
     return {
       content: [{
         type: 'text',
@@ -189,7 +147,9 @@ server.tool(
     dryRun: z.boolean().default(false).describe('Validate without writing'),
   },
   async ({ path, source, allowInvalid, overwrite, dryRun }) => {
-    const { song, errata } = songToHtml(source)
+    const parsed = parseSong(source)
+    const song = parsed.song
+    const errata = parsed.diagnostics
     const destination = safePath(path)
     const hasErrors = errata.some((entry) => entry.severity === 'error')
     if (hasErrors && !allowInvalid) throw new Error('Song has error-severity diagnostics; pass allowInvalid=true to override')
@@ -238,16 +198,16 @@ server.tool(
       if (!info.isFile()) return null
 
       const source = await readFile(fullPath, 'utf-8')
-      const { song, errata } = songToHtml(source)
+      const { song, diagnostics } = parseSong(source)
       return {
         file: entry,
         path: fullPath,
-        title: song.title,
-        key: song.key,
-        authors: song.authors,
-        tempo: song.tempo,
-        time: song.time,
-        issues: errata.length,
+        title: song.metadata.title,
+        key: formatKey(song.metadata.key) || null,
+        authors: song.metadata.authors,
+        tempo: song.metadata.tempo,
+        time: song.metadata.timeSignature,
+        issues: diagnostics.length,
       }
       }))
       songs.push(...parsed.filter(Boolean))
@@ -263,53 +223,6 @@ server.tool(
 )
 
 // ── transpose_song ──────────────────────────────────────────────────────────
-const CHROMATIC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-const FLATS = { 'C#': 'Db', 'D#': 'Eb', 'F#': 'Gb', 'G#': 'Ab', 'A#': 'Bb' }
-const FLAT_KEYS = ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb']
-
-function semiIndex(note) {
-  const up = note.toUpperCase()
-  let idx = CHROMATIC.indexOf(up)
-  if (idx > -1) return idx
-  const alt = { DB: 'C#', EB: 'D#', GB: 'F#', AB: 'G#', BB: 'A#' }[up]
-  return alt ? CHROMATIC.indexOf(alt) : -1
-}
-
-function transposeNote(note, steps, useFlats) {
-  const idx = semiIndex(note)
-  if (idx < 0) return note
-  const shifted = (idx + steps % 12 + 12) % 12
-  let result = CHROMATIC[shifted]
-  if (useFlats) result = FLATS[result] || result
-  return result
-}
-
-function transposeChordToken(token, steps, useFlats) {
-  // Match root note possibly with modifier and rest of chord
-  const m = token.match(/^([A-Ga-g][#b]?)(.*?)$/)
-  if (!m) return token
-  const root = m[1][0].toUpperCase() + m[1].slice(1)
-  const rest = m[2]
-
-  // Handle slash chords recursively for bass note
-  const slashIdx = rest.indexOf('/')
-  if (slashIdx > -1) {
-    const quality = rest.slice(0, slashIdx)
-    const bass = rest.slice(slashIdx + 1)
-    const transposedBass = transposeChordToken(bass, steps, useFlats)
-    return transposeNote(root, steps, useFlats) + quality + '/' + transposedBass
-  }
-
-  return transposeNote(root, steps, useFlats) + rest
-}
-
-function transposeLine(line, steps, useFlats) {
-  // Transpose chord tokens in a chord definition line
-  return line.replace(/\b([A-G][#b]?(?:m|dim|aug|sus|maj|add|min)?[0-9]*(?:\/[A-G][#b]?)?)\b/g, (match) => {
-    return transposeChordToken(match, steps, useFlats)
-  })
-}
-
 server.tool(
   'transpose_song',
   'Transpose a song\'s named chords by a given number of half steps. Returns the modified source text with transposed chords. Nashville numbers are unaffected (they transpose automatically via the key).',
@@ -318,61 +231,45 @@ server.tool(
     steps: z.number().describe('Number of half steps to transpose (positive = up, negative = down)'),
   },
   async ({ source, steps }) => {
-    const lines = source.replace(/\r\n?/g, '\n').split('\n')
-    const result = []
-    let inSections = false
-    let inArrangements = false
-
-    for (const line of lines) {
-      // Update key in title line
-      const keyMatch = line.match(/^(.+)\[([A-Ga-g][#♯b♭]?m?)]$/)
-      if (keyMatch && result.length === 0) {
-        const rawKey = keyMatch[2].replace(/♯/g, '#').replace(/♭/g, 'b')
-        const isMinor = rawKey.endsWith('m')
-        const base = isMinor ? rawKey.slice(0, -1) : rawKey
-        const useFlats = /b$/.test(base) || FLAT_KEYS.includes(base)
-        const newKey = transposeNote(base, steps, useFlats) + (isMinor ? 'm' : '')
-        result.push(`${keyMatch[1]}[${newKey}]`)
-        continue
-      }
-
-      // Update key: metadata
-      const keyMeta = line.match(/^(\s*key:\s*)([A-Ga-g][#♯b♭]?m?)(.*)$/i)
-      if (keyMeta) {
-        const rawKey = keyMeta[2].replace(/♯/g, '#').replace(/♭/g, 'b')
-        const isMinor = rawKey.endsWith('m')
-        const base = isMinor ? rawKey.slice(0, -1) : rawKey
-        const useFlats = /b$/.test(base) || FLAT_KEYS.includes(base)
-        const newKey = transposeNote(base, steps, useFlats) + (isMinor ? 'm' : '')
-        result.push(`${keyMeta[1]}${newKey}${keyMeta[3]}`)
-        continue
-      }
-
-      if (/^\s*Sections:/i.test(line)) inSections = true
-      if (/^\s*Arrangements:/i.test(line)) { inSections = false; inArrangements = true }
-
-      // Transpose chord definition lines (before Sections:)
-      if (!inSections && !inArrangements) {
-        const chordLine = line.match(/^(\s*[^:\r\n]+:\s*)(.+)$/u)
-        if (chordLine && !line.match(/^\s*(key|tempo|author|time|owner|license):/i) && result.length > 0) {
-          const useFlats = /b/i.test(source.match(/\[([A-Ga-g][#♯b♭]?m?)]/)?.[ 1] || '')
-          result.push(chordLine[1] + transposeLine(chordLine[2], steps, useFlats))
-          continue
-        }
-      }
-
-      result.push(line)
-    }
-
-    const transposed = result.join('\n')
+    const parsedSource = parseSong(source)
+    const ast = transposeSongAst(parsedSource.song, steps)
+    const transposed = serializeSong(ast)
     const parsed = songToHtml(transposed)
 
     return {
       content: [{
         type: 'text',
-        text: JSON.stringify({ source: transposed, song: parsed.song, errata: parsed.errata }, null, 2),
+        text: JSON.stringify({ source: transposed, ast, song: parsed.song, errata: validateSong(ast) }, null, 2),
       }],
     }
+  },
+)
+
+// ── detect_format / import_song ─────────────────────────────────────────────
+server.tool(
+  'detect_format',
+  'Detect supported song-chart formats and return ranked confidence with evidence.',
+  { source: z.string().describe('Source chart text to inspect') },
+  async ({ source }) => ({
+    content: [{ type: 'text', text: JSON.stringify({ candidates: detectFormat(source) }, null, 2) }],
+  }),
+)
+
+server.tool(
+  'import_song',
+  'Deterministically import ChordPro, inline bracket chords, OpenSong XML, chords-over-lyrics, or song2html into the canonical Song AST.',
+  {
+    source: z.string().describe('Source chart text'),
+    format: z.enum(['auto', 'chordpro', 'inline-brackets', 'opensong', 'chords-over-lyrics', 'song2html']).default('auto'),
+    sourceName: z.string().optional().describe('Original filename or provenance label'),
+    title: z.string().optional().describe('Title override for formats without metadata'),
+    key: z.string().optional().describe('Key override for formats without metadata'),
+    includeOriginalMapping: z.boolean().default(false).describe('Include source-line to imported-event mapping'),
+  },
+  async ({ source, format, sourceName, title, key, includeOriginalMapping }) => {
+    const result = importSong(source, { format, sourceName, title, key })
+    if (!includeOriginalMapping) delete result.mapping
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
   },
 )
 

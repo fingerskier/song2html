@@ -425,6 +425,21 @@ Arrangements:
 
 ## JavaScript API
 
+The default API below remains the compatibility text-to-fragment renderer. Named exports provide the canonical Song AST pipeline:
+
+```javascript
+import {
+  parseSong,
+  validateSong,
+  serializeSong,
+  transposeSongAst,
+  detectFormat,
+  importSong
+} from 'song2html';
+```
+
+See [`AST.md`](AST.md) for the versioned model, structured chord/key representation, stable identities, source diagnostics, round-trip guarantees, and deterministic importers.
+
 ```javascript
 import songToHtml from 'song2html';
 
