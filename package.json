@@ -1,6 +1,6 @@
 {
   "name": "song2html",
-  "version": "2026.8.2",
+  "version": "2026.8.7",
   "description": "Convert chord-lyric source text-files to formatted HTML for rendering song charts",
   "main": "index.js",
   "type": "module",
@@ -8,13 +8,15 @@
     "song2html-claude": "bin/song2html-claude.js"
   },
   "scripts": {
-    "test": "node test/runner.js && node --test test/mcp.integration.test.js",
+    "test": "node test/runner.js && node --test test/ast.test.js test/mcp.integration.test.js",
     "test:mcp": "node --test test/mcp.integration.test.js",
     "fixtures:update": "SONG2HTML_UPDATE_FIXTURES=1 node test/runner.js",
     "start:mcp": "node bin/song2html-claude.js"
   },
   "files": [
     "index.js",
+    "AST.md",
+    "SPEC.md",
     "bin/",
     "src/",
     ".claude-plugin/",
