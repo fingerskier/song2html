@@ -191,6 +191,10 @@ Arrangements:
 
 Run the stdio MCP server with `npm run start:mcp`. Its parse/read tools support an optional `include` list so callers can omit generated HTML or source and conserve model context. `render_html` supports `print`, `stage`, `compact`, `large-type`, and `dark` themes.
 
+The library now exposes a canonical **Song AST** for structured keys, chords, lyric/chord events, stable section identities, arrangements, source locations, and diagnostics. Parsing, validation, creation, transposition, rendering normalization, and MCP operations share this model. Deterministic importers support ChordPro, inline bracket notation, OpenSong XML, chords-over-lyrics text, and song2html itself. See [AST.md](AST.md) for the schema, API, round-trip guarantees, importer behavior, and examples.
+
+The MCP server also exposes `detect_format` and `import_song`. Importers preserve observed chord order and placement, report ambiguity instead of silently guessing, and retain source provenance. The legacy default `songToHtml()` API remains compatible; AST operations are named exports.
+
 The file tools are intended for a trusted local MCP process. Set `SONG2HTML_LIBRARY_ROOT=/absolute/path/to/library` to confine all read, write, and list operations to one directory. Writes are atomic, refuse existing destinations unless `overwrite: true`, and refuse error-severity diagnostics unless `allowInvalid: true`; `dryRun: true` validates without writing.
 
 `npm test` is read-only. Regenerate checked-in fixture HTML explicitly with `npm run fixtures:update`.

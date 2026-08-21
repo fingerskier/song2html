@@ -1,4 +1,5 @@
 import songToHtml from '../index.js'
+import { parseSong, serializeSong } from './ast.js'
 
 export const THEMES = ['print', 'stage', 'compact', 'large-type', 'dark']
 
@@ -13,7 +14,9 @@ export function escapeHtml(value) {
 }
 
 export function renderStandalone(source, arrangement = '', options = {}) {
-  const { html, song, errata } = songToHtml(source, arrangement)
+  const parsed = typeof source === 'string' ? parseSong(source) : { song: source, diagnostics: [] }
+  const { html, song } = songToHtml(serializeSong(parsed.song), arrangement)
+  const errata = parsed.diagnostics
   const theme = THEMES.includes(options.theme) ? options.theme : 'print'
   const language = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(options.language || '') ? options.language : 'en'
   const page = `<!DOCTYPE html>

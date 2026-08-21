@@ -32,7 +32,7 @@ test('all MCP tools execute through a real stdio client', async () => {
     await client.connect(transport)
     const tools = await client.listTools()
     assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), [
-      'create_song', 'list_song_files', 'parse_song', 'read_song_file',
+      'create_song', 'detect_format', 'import_song', 'list_song_files', 'parse_song', 'read_song_file',
       'render_html', 'transpose_song', 'validate_song', 'write_song_file',
     ])
 
@@ -40,6 +40,10 @@ test('all MCP tools execute through a real stdio client', async () => {
     assert.equal(parsed.song.key, 'Am')
     assert.equal(parsed.html, undefined)
     assert.deepEqual(parsed.errata, [])
+
+    const structured = parseText(await client.callTool({ name: 'parse_song', arguments: { source, include: ['ast'] } }))
+    assert.deepEqual(structured.ast.metadata.key, { tonic: 'A', mode: 'minor' })
+    assert.equal(structured.ast.chordDefinitions[0].progression[2].bass.degree, 2)
 
     const warningOnly = parseText(await client.callTool({
       name: 'validate_song',
@@ -75,6 +79,15 @@ test('all MCP tools execute through a real stdio client', async () => {
 
     const transposed = parseText(await client.callTool({ name: 'transpose_song', arguments: { source, steps: 2 } }))
     assert.equal(transposed.song.key, 'Bm')
+    assert.deepEqual(transposed.ast.metadata.key, { tonic: 'B', mode: 'minor' })
+
+    const chordPro = `{title: Imported}\n{key: G}\n{start_of_verse: Verse}\n[G]hello [C]world\n{end_of_verse}`
+    const detected = parseText(await client.callTool({ name: 'detect_format', arguments: { source: chordPro } }))
+    assert.equal(detected.candidates[0].format, 'chordpro')
+    const imported = parseText(await client.callTool({ name: 'import_song', arguments: { source: chordPro, format: 'auto', includeOriginalMapping: true } }))
+    assert.equal(imported.detectedFormat, 'chordpro')
+    assert.deepEqual(imported.song.chordDefinitions[0].progression.map((chord) => chord.root), ['G', 'C'])
+    assert.equal(imported.mapping[0].chordCount, 2)
 
     const rendered = await client.callTool({
       name: 'render_html',

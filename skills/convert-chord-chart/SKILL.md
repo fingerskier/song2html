@@ -7,6 +7,10 @@ description: "Convert a standard chord chart (chords-over-lyrics text) into song
 
 This skill teaches you how to convert a standard "chords-over-lyrics" text file into the song2html plain-text format.
 
+## Deterministic-first rule
+
+Call `song2html:detect_format`, then `song2html:import_song`, before manually rewriting a chart. ChordPro, inline bracket chords, OpenSong XML, chords-over-lyrics, and existing song2html source have deterministic importers. Preserve their chord sequence, placement mapping, provenance, and diagnostics. Use model judgment only to propose explicit, unapplied corrections for unsupported or ambiguous input; never silently simplify or invent musical data.
+
 ## Standard Chord Chart Input (typical formats)
 
 Standard chord charts look like one of these:
@@ -90,7 +94,7 @@ Gather author, tempo, time signature from the header area. Write as 2-space inde
 
 ### Step 3: Extract chord progressions per section
 
-For each section (verse, chorus, bridge, etc.), read the chord sequence **in order of appearance**. Deduplicate sections of the same type — `Verse 1` and `Verse 2` usually share the same chords.
+For each section (verse, chorus, bridge, etc.), preserve the chord sequence **exactly in order of appearance**. Do not deduplicate or infer shared progressions unless the user explicitly approves that edit.
 
 From chords-over-lyrics like:
 ```
@@ -100,20 +104,17 @@ G            C        G    D
 That saved a wretch like me
 ```
 
-The chord progression is: `G C G G C G D`
-
-But look for the **repeating pattern**. In a 3/4 song with 4 chords per line, this is likely: `G C G D` (one chord per measure). Use musical judgment — the progression for the section is usually 4–8 chords that cycle.
+The observed chord progression is: `G C G G C G D`. Preserve that sequence. A possible shorter repeating pattern may be offered separately as a suggestion, but must not replace observed events automatically.
 
 Write as 2-space indented definitions:
 ```
-  verse: G C G D
+  verse: G C G G C G D
   chorus: C G D G
 ```
 
 **Important rules:**
 - Section names are lowercase in chord definitions: `verse`, `chorus`, `bridge`
-- Multiple verses share one chord definition (matched by first word)
-- If chords repeat with a pattern, use repetition: `(G C) x2 D G`
+- Share definitions or compress repetition only when the source explicitly does so or the user approves the change
 
 ### Step 4: Write lyric sections with caret markers
 

@@ -1,7 +1,7 @@
 {
   "name": "song2html-claude-plugin",
-  "version": "2026.3.29",
-  "description": "Read, write, parse, validate, transpose, and render song chord charts using the song2html format.",
+  "version": "2026.8.21",
+  "description": "Parse, validate, import, transpose, and render song charts through a canonical Song AST.",
   "author": {
     "name": "Fingerskier"
   },

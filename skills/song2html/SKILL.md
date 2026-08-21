@@ -1,6 +1,6 @@
 ---
 name: song2html
-description: "Read, write, parse, validate, transpose, and render song chord charts in the song2html format — a plain-text notation for chord charts with lyrics, Nashville numbers, and arrangements."
+description: "Read, write, parse, validate, import, transpose, and render song chord charts using the canonical Song AST and song2html text format."
 ---
 
 # song2html — Chord Chart Plugin
@@ -34,7 +34,7 @@ Arrangements:
 ### Key Syntax Rules
 
 - **Title line**: first line, optional key in brackets `[G]`, `[F#m]`, `[Bb]`
-- **Metadata**: 2-space indented — `author:`, `key:`, `tempo:`, `time:`
+- **Metadata**: 2-space indented — `author:`, `key:`, `tempo:`, `time:`, `owner:`, `license:`
 - **Chord definitions**: 2-space indented — `section-name: chord1 chord2 ...`
 - **Sections header**: `Sections:` followed by named sections with 4-space indented lyrics
 - **Caret `^`**: marks where the next chord is placed above lyrics
@@ -46,7 +46,7 @@ Arrangements:
 
 ## Converting Standard Chord Charts
 
-To convert a standard chords-over-lyrics text file into song2html format, see the **convert-chord-chart** skill for a detailed step-by-step guide covering all common input formats (chords above lyrics, inline brackets, Nashville numbers, tab sites).
+Use `detect_format` followed by `import_song` for deterministic conversion before attempting model-authored conversion. These tools preserve observed chord order and placement and report ambiguity. See the **convert-chord-chart** skill for human/model review of diagnostics and unsupported formats.
 
 **Quick conversion summary:**
 1. Extract title + key → first line: `Song Title [Key]`
@@ -61,6 +61,8 @@ To convert a standard chords-over-lyrics text file into song2html format, see th
 | Tool | Purpose |
 |------|---------|
 | `song2html:parse_song` | Parse source text → metadata, HTML, arrangements, errata |
+| `song2html:detect_format` | Rank supported external formats with confidence and evidence |
+| `song2html:import_song` | Deterministically import external charts → Song AST + canonical source |
 | `song2html:validate_song` | Check source text for errors without full rendering |
 | `song2html:create_song` | Build source text from structured input (title, chords, sections) |
 | `song2html:read_song_file` | Read a song file from disk and parse it |
