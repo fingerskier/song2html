@@ -99,6 +99,8 @@ F\A  G\B
 #### Nashville Number System
 Uses scale degrees (1-7) instead of chord names. Automatically transposed based on the song's key.
 
+For a **major key**, degrees and chord qualities use the diatonic major scale shown below. For a **minor key**, numbers are rooted on the stated tonic and use the natural-minor scale: `1m 2dim 3 4m 5m 6 7`. Thus `1 4 5 6` in A minor renders as `Am Dm Em F`. This is tonic-relative natural-minor notation, not relative-major numbering.
+
 | Number | Scale Degree | Quality |
 |--------|-------------|---------|
 | 1 | Tonic | Major |
@@ -119,6 +121,7 @@ Uses scale degrees (1-7) instead of chord names. Automatically transposed based 
 ```
   verse: 1/5 4/1    →  G/D C/G
 ```
+The denominator is always rendered as a bass **note**, never as a chord with a quality. Both degrees are relative to the song key.
 
 #### Chord Repetition
 ```
@@ -218,6 +221,8 @@ Arrangements:
 - Only affects Nashville numbered chords; named chords are unchanged
 
 If no arrangements are defined, sections render in the order they appear.
+
+Requesting a non-empty arrangement name that is not defined produces an `error` diagnostic and renders no fallback arrangement.
 
 ---
 
@@ -440,10 +445,23 @@ const result = songToHtml(sourceText, arrangementName);
     key: string|null,     // Musical key (e.g., "G", "F#m")
     tempo: number|null,   // BPM
     time: string|null,    // Time signature
-    authors: string[]     // Array of author names
-  }
+    authors: string[],    // Array of author names
+    owner: string|null,   // Copyright owner
+    license: string|null  // License
+  },
+  errata: [{
+    severity: 'error'|'warning'|'info',
+    type: string,
+    message: string,
+    section?: string,
+    line?: number
+  }]
 }
 ```
+
+An `error` means the requested output cannot be rendered reliably. A `warning` means rendering is possible but the source is likely unintended. Consumers should treat a document as valid when it has no error-severity diagnostics; warnings alone do not make it invalid.
+
+For resource safety, the parser rejects sources over 1,000,000 characters or 20,000 lines, more than 1,000 section declarations, arrangements over 5,000 entries, repeats above `x128`, and progressions above 10,000 expanded chords.
 
 ---
 
