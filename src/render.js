@@ -1,7 +1,32 @@
 import songToHtml from '../index.js'
-import { parseSong, serializeSong } from './ast.js'
+import { formatChord, formatKey, parseSong, serializeSong } from './ast.js'
 
 export const THEMES = ['print', 'stage', 'compact', 'large-type', 'dark']
+
+export function previewPlain(source) {
+  const parsed = typeof source === 'string' ? parseSong(source) : { song: source, diagnostics: [] }
+  const song = parsed.song
+  const definitions = new Map(song.chordDefinitions.map((entry) => [entry.id, entry]))
+  const lines = [`${song.metadata.title}${formatKey(song.metadata.key) ? ` [${formatKey(song.metadata.key)}]` : ''}`]
+  if (song.metadata.authors?.length) lines.push(`author: ${song.metadata.authors.join(', ')}`)
+  for (const section of song.sections) {
+    lines.push('', `## ${section.name}`)
+    const progression = definitions.get(section.chordDefinitionId)?.progression || []
+    let index = 0
+    for (const line of section.lines) {
+      let text = ''
+      for (const part of line.parts) {
+        if (part.type === 'chordEvent') {
+          const chord = progression.length ? progression[index % progression.length] : null
+          text += `[${chord ? formatChord(chord) : ''}]`
+          index++
+        } else text += part.text
+      }
+      lines.push(text || '')
+    }
+  }
+  return { text: lines.join('\n'), song, diagnostics: parsed.diagnostics }
+}
 
 export function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({

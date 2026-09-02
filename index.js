@@ -1,5 +1,6 @@
 export { createSongAst, formatChord, formatKey, parseChord, parseKey, parseSong, semanticSong, serializeSong, transposeSongAst, validateSong } from './src/ast.js'
 export { detectFormat, importChordPro, importChordsOverLyrics, importInlineBrackets, importOpenSong, importSong } from './src/importers.js'
+export { previewPlain, renderStandalone, THEMES } from './src/render.js'
 
 /**
  * Converts a song source file into HTML markup with chord notation and lyrics.

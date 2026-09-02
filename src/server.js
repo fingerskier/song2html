@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { readFile, writeFile, rename, readdir, stat, mkdir } from 'node:fs/promises'
 import { join, extname, resolve, relative, dirname } from 'node:path'
 import songToHtml from '../index.js'
-import { renderStandalone, THEMES } from './render.js'
+import { previewPlain, renderStandalone, THEMES } from './render.js'
 import { createSongAst, formatKey, parseSong, serializeSong, transposeSongAst, validateSong } from './ast.js'
 import { detectFormat, importSong } from './importers.js'
 
@@ -188,7 +188,8 @@ server.tool(
     const entries = await readdir(dir)
     const songs = []
 
-    const candidates = entries.filter((entry) => extname(entry).toLowerCase() === '.txt')
+    const songExtensions = new Set(['.txt', '.s2h', '.pro', '.chopro', '.chordpro'])
+    const candidates = entries.filter((entry) => songExtensions.has(extname(entry).toLowerCase()))
     const concurrency = 8
     for (let start = 0; start < candidates.length; start += concurrency) {
       const batch = candidates.slice(start, start + concurrency)
@@ -264,12 +265,31 @@ server.tool(
     sourceName: z.string().optional().describe('Original filename or provenance label'),
     title: z.string().optional().describe('Title override for formats without metadata'),
     key: z.string().optional().describe('Key override for formats without metadata'),
+    align: z.enum(['word', 'column']).optional().describe('Chords-over-lyrics caret alignment; default word'),
     includeOriginalMapping: z.boolean().default(false).describe('Include source-line to imported-event mapping'),
   },
-  async ({ source, format, sourceName, title, key, includeOriginalMapping }) => {
-    const result = importSong(source, { format, sourceName, title, key })
+  async ({ source, format, sourceName, title, key, align, includeOriginalMapping }) => {
+    const result = importSong(source, { format, sourceName, title, key, align })
     if (!includeOriginalMapping) delete result.mapping
     return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
+  },
+)
+
+// ── preview_song ────────────────────────────────────────────────────────────
+server.tool(
+  'preview_song',
+  'Render song2html source as compact plain text with inline [Chord] markers. Use this to verify caret placement without generating a full HTML page.',
+  {
+    source: z.string().describe('The raw song2html source text'),
+  },
+  async ({ source }) => {
+    const preview = previewPlain(source)
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({ text: preview.text, song: { title: preview.song.metadata.title, key: formatKey(preview.song.metadata.key) || null, authors: preview.song.metadata.authors }, diagnostics: preview.diagnostics }, null, 2),
+      }],
+    }
   },
 )
 

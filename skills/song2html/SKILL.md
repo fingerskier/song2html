@@ -63,6 +63,7 @@ Use `detect_format` followed by `import_song` for deterministic conversion befor
 | `song2html:parse_song` | Parse source text → metadata, HTML, arrangements, errata |
 | `song2html:detect_format` | Rank supported external formats with confidence and evidence |
 | `song2html:import_song` | Deterministically import external charts → Song AST + canonical source |
+| `song2html:preview_song` | Compact `[Chord]lyric` text preview for checking caret placement |
 | `song2html:validate_song` | Check source text for errors without full rendering |
 | `song2html:create_song` | Build source text from structured input (title, chords, sections) |
 | `song2html:read_song_file` | Read a song file from disk and parse it |

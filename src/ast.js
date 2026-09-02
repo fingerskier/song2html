@@ -33,6 +33,9 @@ function transposeNote(note, steps, useFlats) {
 }
 
 export function parseChord(token, loc) {
+  if (/^N\.?C\.?$/i.test(String(token).trim())) {
+    return { type: 'chord', notation: 'rest', raw: token, location: loc }
+  }
   const positionMatch = token.match(/\|(\d{1,2})$/)
   const position = positionMatch ? Number(positionMatch[1]) : null
   const base = positionMatch ? token.slice(0, -positionMatch[0].length) : token
@@ -56,6 +59,7 @@ export function parseChord(token, loc) {
 }
 
 export function formatChord(chord) {
+  if (chord.notation === 'rest') return chord.raw || 'N.C.'
   if (chord.notation === 'nashville') {
     return `${chord.degree}${chord.bass ? `/${chord.bass.degree}` : ''}${chord.quality || ''}${chord.position == null ? '' : `|${chord.position}`}`
   }
@@ -239,6 +243,12 @@ export function validateSong(song) {
   for (const section of song.sections) {
     if (section.chordDefinitionId && !definitionIds.has(section.chordDefinitionId)) diagnostics.push(diagnostic('error', 'UNKNOWN_CHORD_DEFINITION', `Section "${section.name}" references an unknown chord definition`, section.location, section.id))
     if (!section.lines.length) diagnostics.push(diagnostic('warning', 'EMPTY_SECTION', `Section "${section.name}" is empty`, section.location, section.id))
+    const definition = song.chordDefinitions.find((entry) => entry.id === section.chordDefinitionId)
+    const caretCount = section.lines.reduce((count, line) => count + line.parts.filter((part) => part.type === 'chordEvent').length, 0)
+    const chordCount = definition?.progression.length || 0
+    if (caretCount > 0 && chordCount > 0 && caretCount > chordCount) {
+      diagnostics.push(diagnostic('warning', 'CHORD_CARET_MISMATCH', `Section "${section.name}" has ${caretCount} chord markers but only ${chordCount} chords defined (chords will cycle)`, section.location, section.id))
+    }
   }
   for (const arrangement of song.arrangements) {
     if (!arrangement.entries.length) diagnostics.push(diagnostic('warning', 'EMPTY_ARRANGEMENT', `Arrangement "${arrangement.name}" is empty`, arrangement.location, arrangement.id))

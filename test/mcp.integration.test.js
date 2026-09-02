@@ -32,8 +32,8 @@ test('all MCP tools execute through a real stdio client', async () => {
     await client.connect(transport)
     const tools = await client.listTools()
     assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), [
-      'create_song', 'detect_format', 'import_song', 'list_song_files', 'parse_song', 'read_song_file',
-      'render_html', 'transpose_song', 'validate_song', 'write_song_file',
+      'create_song', 'detect_format', 'import_song', 'list_song_files', 'parse_song', 'preview_song',
+      'read_song_file', 'render_html', 'transpose_song', 'validate_song', 'write_song_file',
     ])
 
     const parsed = parseText(await client.callTool({ name: 'parse_song', arguments: { source, include: ['song', 'errata'] } }))
@@ -73,9 +73,15 @@ test('all MCP tools execute through a real stdio client', async () => {
     assert.equal(read.source, undefined)
     assert.equal(read.html, undefined)
 
+    const s2hPath = join(library, 'integration.s2h')
+    await client.callTool({ name: 'write_song_file', arguments: { path: s2hPath, source } })
     const listed = parseText(await client.callTool({ name: 'list_song_files', arguments: { directory: library } }))
-    assert.equal(listed.count, 1)
-    assert.equal(listed.songs[0].title, 'Integration')
+    assert.equal(listed.count, 2)
+    assert.equal(listed.songs.some((song) => song.file === 'integration.s2h'), true)
+    assert.equal(listed.songs.every((song) => song.title === 'Integration'), true)
+
+    const preview = parseText(await client.callTool({ name: 'preview_song', arguments: { source } }))
+    assert.match(preview.text, /\[1\]one \[4\]four \[5\/2\]five/)
 
     const transposed = parseText(await client.callTool({ name: 'transpose_song', arguments: { source, steps: 2 } }))
     assert.equal(transposed.song.key, 'Bm')

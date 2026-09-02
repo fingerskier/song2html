@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
-  createSongAst, detectFormat, importSong, parseChord, parseSong,
+  createSongAst, detectFormat, formatChord, importSong, parseChord, parseSong,
   semanticSong, serializeSong, transposeSongAst,
 } from '../index.js'
 
@@ -53,9 +53,11 @@ test('AST transposition changes structured keys and named chord roots, not Nashv
 test('chord parser rejects ordinary words while accepting supported chord forms', () => {
   assert.equal(parseChord('Amazing').notation, 'unknown')
   assert.equal(parseChord('grace').notation, 'unknown')
-  for (const token of ['C', 'F#m7', 'Bbmaj7', 'G/D', '5/2', 'Gsus4', 'Cadd9', 'G-BCD', 'F\\A']) {
+  for (const token of ['C', 'F#m7', 'Bbmaj7', 'G/D', '5/2', 'Gsus4', 'Cadd9', 'G-BCD', 'F\\A', 'F2', 'G4']) {
     assert.notEqual(parseChord(token).notation, 'unknown', token)
   }
+  assert.equal(parseChord('N.C.').notation, 'rest')
+  assert.equal(parseChord('NC').notation, 'rest')
 })
 
 test('ChordPro imports deterministically with exact chord order and placement', () => {
@@ -88,10 +90,40 @@ test('chords-over-lyrics importer maps source columns and reports ambiguity', ()
 [Verse]
 G      C         D
 Amazing grace is home`
-  const imported = importSong(source, { format: 'chords-over-lyrics', key: 'G' })
+  const imported = importSong(source, { format: 'chords-over-lyrics', key: 'G', align: 'column' })
   assert.deepEqual(imported.song.chordDefinitions[0].progression.map((chord) => chord.root), ['G', 'C', 'D'])
   assert.equal(imported.mapping[0].sourceLine, 3)
   assert.equal(imported.diagnostics.some((entry) => entry.code === 'AMBIGUOUS_CHORD_ALIGNMENT'), true)
+})
+
+test('chords-over-lyrics word alignment snaps whitespace to the following word', () => {
+  const source = `Aligned
+[Verse]
+G      C         D
+Amazing grace is home`
+  const imported = importSong(source, { format: 'chords-over-lyrics', key: 'G' })
+  assert.match(imported.song2htmlSource, /\^Amazing \^grace is \^home/)
+  assert.equal(imported.diagnostics.some((entry) => entry.code === 'SNAP_TO_FOLLOWING_WORD'), true)
+})
+
+test('chords-over-lyrics imports bar-line instrumentals, rests, and header metadata', () => {
+  const source = `Your Way
+Key: G
+Author: Test Writer
+[Intro]
+|G D Em D|C Cm |G
+[Outro]
+G
+On earth as in heaven
+N.C.
+Right here in my heart`
+  const imported = importSong(source, { format: 'chords-over-lyrics', sourceName: 'Your Ways Better.txt' })
+  assert.equal(imported.song.metadata.title, 'Your Way')
+  assert.deepEqual(imported.song.metadata.key, { tonic: 'G', mode: 'major' })
+  assert.deepEqual(imported.song.metadata.authors, ['Test Writer'])
+  assert.equal(imported.song.chordDefinitions[0].progression.map(formatChord).join(' '), 'G D Em D C Cm G')
+  assert.equal(imported.diagnostics.some((entry) => entry.code === 'INSTRUMENTAL_CHORD_LINE'), true)
+  assert.equal(imported.song.chordDefinitions.at(-1).progression.some((chord) => chord.notation === 'rest'), true)
 })
 
 test('OpenSong XML imports metadata and chord-bearing lyrics', () => {

@@ -282,10 +282,9 @@ Then name your lyric sections to match: `Verse-1 1:` and `Verse-2 1:`.
 ## Workflow
 
 1. Read the input chord chart
-2. Identify title, key, metadata
-3. Identify all sections and their chord progressions
-4. For each section, align carets to where chords fall on lyrics
-5. Optionally define arrangements
-6. Use `song2html:validate_song` to check for errors
-7. Use `song2html:write_song_file` to save the result
-8. Optionally use `song2html:render_html` to preview as HTML
+2. Call `song2html:detect_format`, then `song2html:import_song` (use `format: "chords-over-lyrics"` when auto-detect is ambiguous)
+3. Call `song2html:preview_song` on the imported `song2htmlSource` and read diagnostics (`SNAP_TO_FOLLOWING_WORD`, `INSTRUMENTAL_CHORD_LINE`, `CHORD_BEYOND_LYRIC`)
+4. Apply explicit musical corrections only where the preview is wrong; do not silently invent chords
+5. Use `song2html:validate_song` to check for errors
+6. Use `song2html:write_song_file` to save the result (prefer `.s2h` alongside the original chart)
+7. Optionally use `song2html:render_html` for a browser page

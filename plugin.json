@@ -19,6 +19,5 @@
     "grok",
     "grok-build",
     "mcp"
-  ],
-  "mcpServers": "./.mcp.json"
+  ]
 }

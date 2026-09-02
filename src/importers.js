@@ -21,9 +21,63 @@ export function detectFormat(source) {
   return candidates.sort((left, right) => right.confidence - left.confidence)
 }
 
+function normalizeChordToken(value) {
+  return String(value).replace(/^[,:]+/, '').replace(/[,:]+$/, '')
+}
+
+function isTabLine(line) {
+  return /^[eEBGDA]\|[-\d\s|xhpbvr~/\\]+$/.test(line.trim())
+}
+
+function chordLineTokens(line) {
+  return line.split('|').flatMap((part) => part.trim().split(/\s+/).filter(Boolean)).map(normalizeChordToken).filter(Boolean)
+}
+
+function chordEvents(line) {
+  const events = []
+  let column = 0
+  for (const [index, part] of line.split('|').entries()) {
+    if (index) column += 1
+    const matcher = /\S+/g
+    let match
+    while ((match = matcher.exec(part))) {
+      const chord = normalizeChordToken(match[0])
+      if (chord && chordToken(chord)) events.push({ chord, index: column + match.index })
+    }
+    column += part.length
+  }
+  return events
+}
+
 function isChordLine(line) {
-  const values = line.trim().split(/\s+/).filter(Boolean)
-  return values.length > 0 && values.every((value) => chordToken(value.replace(/[|,:]+$/g, '')))
+  if (isTabLine(line)) return false
+  const values = chordLineTokens(line)
+  return values.length > 0 && values.every((value) => chordToken(value))
+}
+
+function isSectionHeader(trimmed) {
+  const header = trimmed.match(/^\[([^\]]+)]$/) || trimmed.match(/^([^:]+):$/)
+  return Boolean(header && !isChordLine(trimmed) && !chordToken(header[1]))
+}
+
+function snapCaretColumn(lyricLine, column, diagnostics, chord, lineNumber) {
+  if (column >= lyricLine.length) {
+    if (column > lyricLine.length) diagnostics.push(diag('warning', 'CHORD_BEYOND_LYRIC', `Chord ${chord} lies beyond the lyric line and was attached at the end`, lineNumber, column + 1))
+    return lyricLine.length
+  }
+  if (/\s/.test(lyricLine[column] || '')) {
+    let next = column
+    while (next < lyricLine.length && /\s/.test(lyricLine[next])) next++
+    diagnostics.push(diag('info', 'SNAP_TO_FOLLOWING_WORD', `Chord ${chord} fell in whitespace and was attached to the following word`, lineNumber, column + 1))
+    return next
+  }
+  let start = column
+  while (start > 0 && !/\s/.test(lyricLine[start - 1])) start--
+  if (column - start > 0 && column - start <= 2) {
+    diagnostics.push(diag('info', 'SNAP_TO_WORD_START', `Chord ${chord} was within two characters of a word start and snapped to it`, lineNumber, column + 1))
+    return start
+  }
+  return column
 }
 
 function splitInline(line, lineNumber, diagnostics) {
@@ -119,28 +173,51 @@ export function importChordsOverLyrics(source, options = {}) {
   const diagnostics = []
   const lines = source.replace(/\r\n?/g, '\n').split('\n')
   let title = options.title || ''
+  const metadata = { key: options.key || null, authors: [], tempo: null, time: null }
   const sections = []; let current = { name: 'Song', lyrics: [], chords: [] }
   const flush = () => { if (current.lyrics.length || current.chords.length) sections.push(current); current = { name: `Section ${sections.length + 1}`, lyrics: [], chords: [] } }
   const mapping = []
+  const align = options.align === 'column' ? 'column' : 'word'
+  const titleFromName = () => options.sourceName ? String(options.sourceName).replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() : ''
   for (let index = 0; index < lines.length; index++) {
     const trimmed = lines[index].trim()
-    const header = trimmed.match(/^\[([^\]]+)]$/) || trimmed.match(/^([^:]+):$/)
-    if (header && !isChordLine(trimmed)) { flush(); current.name = header[1].trim(); continue }
+    if (isTabLine(lines[index])) continue
+    const meta = trimmed.match(/^(key|tempo|time|author|artist|writer|composer)\s*:\s*(.+)$/i)
+    if (meta) {
+      const tag = meta[1].toLowerCase(); const value = meta[2].trim()
+      if (tag === 'key' && !metadata.key) metadata.key = value
+      else if (tag === 'tempo' && /^\d+$/.test(value)) metadata.tempo = Number(value)
+      else if (tag === 'time') metadata.time = value
+      else if (!['key', 'tempo', 'time'].includes(tag)) metadata.authors.push(...value.split(',').map((item) => item.trim()).filter(Boolean))
+      continue
+    }
+    if (isSectionHeader(trimmed)) {
+      const header = trimmed.match(/^\[([^\]]+)]$/) || trimmed.match(/^([^:]+):$/)
+      flush(); current.name = header[1].trim(); continue
+    }
     if (isChordLine(lines[index])) {
-      if (index + 1 >= lines.length || !lines[index + 1].trim() || isChordLine(lines[index + 1])) {
-        diagnostics.push(diag('warning', 'CHORD_LINE_WITHOUT_LYRIC', 'Chord line has no following lyric line', index + 1)); continue
+      const events = chordEvents(lines[index])
+      const next = lines[index + 1]
+      const hasLyric = next !== undefined && next.trim() && !isChordLine(next) && !isTabLine(next) && !isSectionHeader(next.trim())
+      if (!hasLyric) {
+        current.lyrics.push(events.map(() => '^').join(' '))
+        current.chords.push(...events.map((event) => event.chord))
+        mapping.push({ sourceLine: index + 1, lyricLine: null, section: current.name, chordCount: events.length })
+        diagnostics.push(diag('info', 'INSTRUMENTAL_CHORD_LINE', 'Chord line has no following lyric line; imported as instrumental carets', index + 1))
+        continue
       }
-      const chordLine = lines[index]; const lyricLine = lines[++index]
-      const events = [...chordLine.matchAll(/\S+/g)].filter((match) => chordToken(match[0].replace(/[|,:]+$/g, '')))
+      const lyricLine = lines[++index]
       let output = lyricLine
       let offset = 0
       for (const event of events) {
-        const chord = event[0].replace(/[|,:]+$/g, '')
         let column = Math.min(event.index, lyricLine.length)
-        if (column === lyricLine.length && event.index > lyricLine.length) diagnostics.push(diag('warning', 'CHORD_BEYOND_LYRIC', `Chord ${chord} lies beyond the lyric line and was attached at the end`, index, event.index + 1))
-        if (/\s/.test(lyricLine[column] || '') && column > 0 && column < lyricLine.length) diagnostics.push(diag('warning', 'AMBIGUOUS_CHORD_ALIGNMENT', `Chord ${chord} falls in whitespace; its source column was preserved`, index, event.index + 1))
+        if (align === 'word') column = snapCaretColumn(lyricLine, column, diagnostics, event.chord, index + 1)
+        else {
+          if (column === lyricLine.length && event.index > lyricLine.length) diagnostics.push(diag('warning', 'CHORD_BEYOND_LYRIC', `Chord ${event.chord} lies beyond the lyric line and was attached at the end`, index + 1, event.index + 1))
+          if (/\s/.test(lyricLine[column] || '') && column > 0 && column < lyricLine.length) diagnostics.push(diag('warning', 'AMBIGUOUS_CHORD_ALIGNMENT', `Chord ${event.chord} falls in whitespace; its source column was preserved`, index + 1, event.index + 1))
+        }
         output = output.slice(0, column + offset) + '^' + output.slice(column + offset); offset++
-        current.chords.push(chord)
+        current.chords.push(event.chord)
       }
       current.lyrics.push(output)
       mapping.push({ sourceLine: index, lyricLine: index + 1, section: current.name, chordCount: events.length })
@@ -152,7 +229,11 @@ export function importChordsOverLyrics(source, options = {}) {
   flush()
   const chords = {}; const songSections = []
   sections.forEach((section, index) => { const name = `part${index + 1}`; chords[name] = section.chords; songSections.push({ name: section.name, lyrics: section.lyrics }) })
-  const song = createSongAst({ title: title || 'Imported Song', key: options.key, chords, sections: songSections })
+  const song = createSongAst({
+    title: title || titleFromName() || 'Imported Song',
+    key: metadata.key, author: metadata.authors.join(', '), tempo: metadata.tempo, time: metadata.time,
+    chords, sections: songSections,
+  })
   song.sections.forEach((section, index) => { section.chordDefinitionId = song.chordDefinitions[index]?.id || null })
   return finish(song, 'chords-over-lyrics', diagnostics, 0.8, options.sourceName, mapping)
 }

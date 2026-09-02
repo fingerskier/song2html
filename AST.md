@@ -137,7 +137,7 @@ Supported formats:
 - `chordpro` — directives and inline chord events
 - `inline-brackets` — `[G]lyric [C]placement`
 - `opensong` — OpenSong XML metadata and chord-bearing lyrics
-- `chords-over-lyrics` — chord columns mapped onto the following lyric line
+- `chords-over-lyrics` — chord columns mapped onto the following lyric line. Default `align: 'word'` snaps whitespace hits to the next word and near-start hits to the word start, emitting diagnostics. Pass `align: 'column'` to keep raw source columns. Chord-only lines become instrumental caret lines. Header fields `Key:`, `Tempo:`, `Time:`, `Author:`/`Artist:`/`Writer:` become metadata. Bar-line charts such as `|G D Em D|` are tokenized as chords.
 - `song2html` — canonical parsing and serialization
 
 The result includes:
@@ -164,6 +164,7 @@ Two tools extend the original eight:
 
 - `detect_format` returns ranked candidates and evidence.
 - `import_song` returns the AST, canonical song2html source, diagnostics, confidence, provenance, and optional original mapping.
+- `preview_song` returns compact `[Chord]lyric` text for caret-placement review.
 
 `parse_song` and `read_song_file` accept `include: ['ast']`. `create_song`, `validate_song`, `transpose_song`, write validation, library listing, and render normalization use the shared AST operations.
 

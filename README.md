@@ -187,13 +187,23 @@ Arrangements:
     * A7 or 67 - position indicator
       * a number after a chord indicates the position of the chord on the fretboard, or octave on piano
 
+## Grok Build / Claude Code plugin
+
+Install from this repo (trusted local path):
+
+```bash
+grok plugin install C:\dev\fingerskier\lib\song2html --trust
+```
+
+The plugin ships skills, a `/convert-chord-chart` command, and an MCP server. MCP args are rooted at `${CLAUDE_PLUGIN_ROOT}` so the server starts from the plugin install, not the current workspace.
+
 ## MCP tools and filesystem policy
 
-Run the stdio MCP server with `npm run start:mcp`. Its parse/read tools support an optional `include` list so callers can omit generated HTML or source and conserve model context. `render_html` supports `print`, `stage`, `compact`, `large-type`, and `dark` themes.
+Run the stdio MCP server with `npm run start:mcp`. Its parse/read tools support an optional `include` list so callers can omit generated HTML or source and conserve model context. `preview_song` returns compact `[Chord]lyric` text for caret checks. `render_html` supports `print`, `stage`, `compact`, `large-type`, and `dark` themes. `list_song_files` scans `.txt`, `.s2h`, `.pro`, `.chopro`, and `.chordpro`.
 
 The library now exposes a canonical **Song AST** for structured keys, chords, lyric/chord events, stable section identities, arrangements, source locations, and diagnostics. Parsing, validation, creation, transposition, rendering normalization, and MCP operations share this model. Deterministic importers support ChordPro, inline bracket notation, OpenSong XML, chords-over-lyrics text, and song2html itself. See [AST.md](AST.md) for the schema, API, round-trip guarantees, importer behavior, and examples.
 
-The MCP server also exposes `detect_format` and `import_song`. Importers preserve observed chord order and placement, report ambiguity instead of silently guessing, and retain source provenance. The legacy default `songToHtml()` API remains compatible; AST operations are named exports.
+The MCP server also exposes `detect_format`, `import_song`, and `preview_song`. Importers preserve observed chord order and placement, report ambiguity instead of silently guessing, and retain source provenance. The legacy default `songToHtml()` API remains compatible; AST operations are named exports.
 
 The file tools are intended for a trusted local MCP process. Set `SONG2HTML_LIBRARY_ROOT=/absolute/path/to/library` to confine all read, write, and list operations to one directory. Writes are atomic, refuse existing destinations unless `overwrite: true`, and refuse error-severity diagnostics unless `allowInvalid: true`; `dryRun: true` validates without writing.
 
