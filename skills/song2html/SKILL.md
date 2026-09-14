@@ -58,16 +58,18 @@ Use `detect_format` followed by `import_song` for deterministic conversion befor
 
 ## Tools
 
+Hosts may prefix these names (`song2html:parse_song` or `mcp_…_parse_song`). Call the unprefixed tool name when it is registered directly.
+
 | Tool | Purpose |
 |------|---------|
-| `song2html:parse_song` | Parse source text → metadata, HTML, arrangements, errata |
-| `song2html:detect_format` | Rank supported external formats with confidence and evidence |
-| `song2html:import_song` | Deterministically import external charts → Song AST + canonical source |
-| `song2html:preview_song` | Compact `[Chord]lyric` text preview for checking caret placement |
-| `song2html:validate_song` | Check source text for errors without full rendering |
-| `song2html:create_song` | Build source text from structured input (title, chords, sections) |
-| `song2html:read_song_file` | Read a song file from disk and parse it |
-| `song2html:write_song_file` | Write source text to a file (validates first) |
-| `song2html:list_song_files` | Scan a directory for song files and summarize each |
-| `song2html:transpose_song` | Transpose named chords by N half steps |
-| `song2html:render_html` | Generate a standalone HTML page with embedded styles |
+| `parse_song` | Parse source text → metadata, HTML, arrangements, errata |
+| `detect_format` | Rank supported external formats with confidence and evidence |
+| `import_song` | Deterministically import external charts → Song AST + canonical source |
+| `preview_song` | Compact `[Chord]lyric` text preview for checking caret placement |
+| `validate_song` | Check source text for errors without full rendering |
+| `create_song` | Build source text from structured input (title, chords, sections) |
+| `read_song_file` | Read a song file from disk and parse it |
+| `write_song_file` | Write source text to a file (validates first) |
+| `list_song_files` | Scan a directory for song files and summarize each |
+| `transpose_song` | Transpose named chords by N half steps |
+| `render_html` | Generate a standalone HTML page with embedded styles |

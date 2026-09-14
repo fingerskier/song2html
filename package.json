@@ -1,15 +1,16 @@
 {
   "name": "song2html",
-  "version": "2026.9.1",
+  "version": "2026.9.14",
   "description": "Convert chord-lyric source text-files to formatted HTML for rendering song charts",
   "main": "index.js",
   "type": "module",
   "bin": {
     "song2html-mcp": "bin/song2html-mcp.js",
-    "song2html-claude": "bin/song2html-claude.js"
+    "song2html-claude": "bin/song2html-claude.js",
+    "song2html-tool": "bin/song2html-tool.js"
   },
   "scripts": {
-    "test": "node test/runner.js && node --test test/ast.test.js test/mcp.integration.test.js test/plugin-host.test.js",
+    "test": "node test/runner.js && node --test test/ast.test.js test/mcp.integration.test.js test/plugin-host.test.js test/plugin-tool.test.js && python3 -m unittest discover -s test -p 'test_hermes*.py'",
     "test:mcp": "node --test test/mcp.integration.test.js",
     "fixtures:update": "SONG2HTML_UPDATE_FIXTURES=1 node test/runner.js",
     "start:mcp": "node bin/song2html-mcp.js"
@@ -22,6 +23,9 @@
     "src/",
     "commands/",
     "plugin.json",
+    "plugin.yaml",
+    "__init__.py",
+    "after-install.md",
     ".claude-plugin/",
     ".mcp.json",
     "mcp-servers.json",
@@ -37,6 +41,7 @@
     "claude-code-plugin",
     "grok",
     "grok-build",
+    "hermes",
     "mcp"
   ],
   "author": "fingerskier",

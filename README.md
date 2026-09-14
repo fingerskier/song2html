@@ -197,6 +197,21 @@ grok plugin install C:\dev\fingerskier\lib\song2html --trust
 
 The plugin ships skills, a `/convert-chord-chart` command, and an MCP server. MCP args are rooted at `${CLAUDE_PLUGIN_ROOT}` so the server starts from the plugin install, not the current workspace.
 
+## Hermes plugin
+
+Install the whole repository so the Node library is present:
+
+```bash
+hermes plugins install fingerskier/song2html
+cd "$HERMES_HOME/plugins/song2html"
+npm install --omit=dev
+hermes plugins enable song2html
+```
+
+Restart the gateway from an external shell. The plugin registers the same tools as the MCP server, the `song2html` and `convert-chord-chart` skills, and `/convert-chord-chart`. Node.js >= 20 is required.
+
+Optional file-tool confinement: `SONG2HTML_LIBRARY_ROOT` or `hermes config set plugins.entries.song2html.settings.library_root /absolute/path`.
+
 ## MCP tools and filesystem policy
 
 Run the stdio MCP server with `npm run start:mcp`. Its parse/read tools support an optional `include` list so callers can omit generated HTML or source and conserve model context. `preview_song` returns compact `[Chord]lyric` text for caret checks. `render_html` supports `print`, `stage`, `compact`, `large-type`, and `dark` themes. `list_song_files` scans `.txt`, `.s2h`, `.pro`, `.chopro`, and `.chordpro`.

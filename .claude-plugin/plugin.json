@@ -1,6 +1,6 @@
 {
   "name": "song2html",
-  "version": "2026.9.1",
+  "version": "2026.9.14",
   "description": "Parse, validate, import, convert, transpose, and render song chord charts through a canonical Song AST.",
   "author": {
     "name": "Fingerskier"
@@ -18,6 +18,7 @@
     "chord-chart",
     "grok",
     "grok-build",
+    "hermes",
     "mcp"
   ],
   "mcpServers": "./.mcp.json"
