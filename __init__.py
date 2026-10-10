@@ -69,7 +69,8 @@ def invoke_tool(name: str, params: Optional[Mapping[str, Any]] = None) -> str:
     stdout = (proc.stdout or "").strip()
     stderr = (proc.stderr or "").strip()
     if proc.returncode == 0:
-        return stdout or json.dumps({"ok": True})
+        # The runner puts extra result blocks (such as render errors) on stderr; keep them.
+        return "\n\n".join(part for part in (stdout, stderr) if part) or json.dumps({"ok": True})
     if stderr:
         try:
             parsed = json.loads(stderr)

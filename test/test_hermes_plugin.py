@@ -63,6 +63,14 @@ class HermesPluginTests(unittest.TestCase):
         self.assertEqual(body["song"]["key"], "C")
         self.assertEqual(body["diagnostics"], [])
 
+    def test_render_errors_reach_the_agent(self):
+        payload = self.plugin.invoke_tool(
+            "render_html",
+            {"source": "Invoke [C]\n  verse: C G\n\nSections:\n  Verse:\n    ^hi ^there", "fragment": True, "arrangement": "Missing"},
+        )
+        self.assertTrue(payload.startswith('<article class="s2h-song">'))
+        self.assertIn("UNKNOWN_ARRANGEMENT", payload)
+
     def test_invalid_arguments_return_an_error(self):
         body = json.loads(self.plugin.invoke_tool("import_song", {"source": "x", "transpose": 1.5}))
         self.assertIn("must be an integer", body["error"])

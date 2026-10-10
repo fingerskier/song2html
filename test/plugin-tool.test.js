@@ -54,3 +54,10 @@ test('song2html-tool rejects unknown tools and invalid arguments', async () => {
   assert.equal(invalid.code, 1)
   assert.match(invalid.stderr, /at most 11/)
 })
+
+test('song2html-tool keeps render errors on stderr and the HTML on stdout', async () => {
+  const rendered = await runTool('render_html', { source, fragment: true, arrangement: 'Missing' })
+  assert.equal(rendered.code, 0)
+  assert.match(rendered.stdout, /^<article class="s2h-song">/)
+  assert.equal(JSON.parse(rendered.stderr).errors[0].code, 'UNKNOWN_ARRANGEMENT')
+})
