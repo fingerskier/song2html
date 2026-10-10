@@ -58,7 +58,7 @@ function parse(argv) {
   const integer = (name, min, max) => {
     if (values[name] === undefined) return undefined
     const number = Number(values[name])
-    if (!/^-?\d+$/.test(values[name]) || number < min || number > max) throw new UsageError(`--${name} must be an integer from ${min} to ${max}`)
+    if (!/^[+-]?\d+$/.test(values[name]) || number < min || number > max) throw new UsageError(`--${name} must be an integer from ${min} to ${max}`)
     return number
   }
   const oneOf = (name, allowed) => {
@@ -101,7 +101,16 @@ async function run(argv) {
   }
   const inputs = options.inputs.length ? options.inputs : [null]
   if (inputs.length > 1 && !options['out-dir'] && !options.check) throw new UsageError('several inputs need --out-dir (or --check)')
-  if (options['out-dir']) await mkdir(options['out-dir'], { recursive: true })
+  const targetFor = (input) => join(options['out-dir'], `${input && input !== '-' ? basename(input, extname(input)) : 'song'}.${EXTENSIONS[options.to]}`)
+  if (options['out-dir'] && !options.check) {
+    const seen = new Map()
+    for (const input of inputs) {
+      const target = targetFor(input)
+      if (seen.has(target)) throw new UsageError(`${seen.get(target)} and ${input ?? '<stdin>'} would both write ${target}`)
+      seen.set(target, input ?? '<stdin>')
+    }
+    await mkdir(options['out-dir'], { recursive: true })
+  }
   let clean = true
   for (const input of inputs) {
     const label = input && input !== '-' ? input : '<stdin>'
@@ -115,14 +124,21 @@ async function run(argv) {
     const hasErrors = result.diagnostics.some((entry) => entry.severity === 'error')
     clean &&= !hasErrors
     if (options.check || (!result.output && hasErrors)) continue
-    if (options['out-dir']) {
-      const stem = input && input !== '-' ? basename(input, extname(input)) : 'song'
-      await writeFile(join(options['out-dir'], `${stem}.${EXTENSIONS[options.to]}`), result.output)
-    } else if (options.output) await writeFile(options.output, result.output)
+    if (options['out-dir']) await writeFile(targetFor(input), result.output)
+    else if (options.output) await writeFile(options.output, result.output)
     else process.stdout.write(result.output)
   }
   return clean || !(options.check || options.strict) ? 0 : 1
 }
+
+// A reader that closes early (`song2html song.txt | head`) is not an error.
+process.stdout.on('error', (error) => {
+  if (error.code !== 'EPIPE') {
+    process.stderr.write(`song2html: ${error.message}\n`)
+    process.exitCode = 2
+  }
+  process.exit()
+})
 
 try {
   process.exitCode = await run(process.argv.slice(2))

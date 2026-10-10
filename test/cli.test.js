@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -21,6 +21,7 @@ const CASES = [
   [['-t', 'preview'], SONG],
   [['-t', 'fragment', '--capo', '2'], SONG],
   [['-t', 'song2html', '--transpose', '-2'], SONG],
+  [['-t', 'song2html', '--transpose', '+2'], SONG],
   [['-t', 'json'], SONG],
   [['-t', 'song2html'], '{title: X}\n{key: D}\n{sov}\n[D]Hi [G]there\n{eov}\n'],
   [['--check'], BROKEN],
@@ -69,5 +70,35 @@ test('native and node CLIs produce identical output', { skip: !NATIVE_CLI && 'se
     if (native.status === 2) continue // usage wording differs between clap and parseArgs
     assert.equal(native.stdout, node.stdout, args.join(' '))
     assert.equal(native.stderr, node.stderr, args.join(' '))
+  }
+})
+
+const CLIS = [['node', NODE_CLI], ['native', NATIVE_CLI]].filter(([, cli]) => cli)
+
+test('CLIs accept +N, refuse colliding --out-dir targets, and stop quietly on a closed pipe', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'song2html-cli-'))
+  try {
+    await mkdir(join(dir, 'a'))
+    await mkdir(join(dir, 'b'))
+    await writeFile(join(dir, 'a', 'song.txt'), SONG)
+    await writeFile(join(dir, 'b', 'song.txt'), SONG)
+    // Large enough that the reader closes before the writer finishes.
+    await writeFile(join(dir, 'big.txt'), SONG + '    how sweet the sound that saved a wretch like me\n'.repeat(5000))
+    for (const [name, cli] of CLIS) {
+      assert.match(run(cli, ['-t', 'song2html', '--transpose', '+2'], SONG).stdout, /^Grace \[A]/, name)
+
+      const out = join(dir, `out-${name}`)
+      const collide = run(cli, [join(dir, 'a', 'song.txt'), join(dir, 'b', 'song.txt'), '-d', out], '')
+      assert.equal(collide.status, 2, name)
+      assert.match(collide.stderr, /would both write/, name)
+      await assert.rejects(readdir(out), name)
+
+      const [command, ...prefix] = cli
+      const piped = spawnSync('sh', ['-c', '"$@" | head -c 1 >/dev/null', 'sh', command, ...prefix, join(dir, 'big.txt')], { encoding: 'utf8' })
+      assert.equal(piped.status, 0, name)
+      assert.equal(piped.stderr, '', name)
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true })
   }
 })
