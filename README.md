@@ -16,7 +16,13 @@ song2html --check songs/*.txt                      # validate; exit 1 on errors
 cat song.txt | song2html --to fragment -a Live     # stdin, one arrangement, HTML fragment
 ```
 
-Output formats (`--to`): `page`, `fragment`, `json`, `ast`, `song2html`, `arrangements`. Diagnostics go to stderr as `file:line: severity: message [CODE]`. The binary runs the same JavaScript modules that ship in the npm package, embedded in QuickJS, so the CLI and the library always parse identically.
+Output formats (`--to`): `page`, `fragment`, `json`, `ast`, `song2html`, `preview` (`[Chord]lyric` text for checking caret placement), `arrangements`. Diagnostics go to stderr as `file:line: severity: message [CODE]`, or one JSON object per input with `--diagnostics json`. Exit codes: 0 ok, 1 error diagnostics with `--check`/`--strict`, 2 usage or I/O errors.
+
+Without the binary, `npx song2html` runs the same CLI on Node.js 20+.
+
+### With AI agents
+
+An agent with a shell needs only the CLI and the [`song2html` skill](skills/song2html/SKILL.md): it writes the text format directly, then loops on `song2html --check --diagnostics json` and `song2html -t preview` before rendering. The MCP server and plugins below are for hosts without a shell. The binary runs the same JavaScript modules that ship in the npm package, embedded in QuickJS, so the CLI and the library always parse identically.
 
 ## Library
 

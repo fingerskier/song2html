@@ -4,10 +4,10 @@
 import { parseSong, serializeSong, transposeSongAst } from './ast.js'
 import { renderSongHtml } from './html.js'
 import { detectFormat, importSong } from './importers.js'
-import { THEMES, wrapPage } from './render.js'
+import { THEMES, previewPlain, wrapPage } from './render.js'
 
 export const INPUT_FORMATS = ['auto', 'song2html', 'chordpro', 'inline-brackets', 'opensong', 'chords-over-lyrics']
-export const OUTPUT_FORMATS = ['page', 'fragment', 'json', 'ast', 'song2html', 'arrangements']
+export const OUTPUT_FORMATS = ['page', 'fragment', 'json', 'ast', 'song2html', 'preview', 'arrangements']
 
 /**
  * Converts chart text to the requested output.
@@ -39,6 +39,7 @@ export function convert(request) {
 
   if (to === 'ast') return { output: `${JSON.stringify(song, null, 2)}\n`, diagnostics, format }
   if (to === 'song2html') return { output: serializeSong(song), diagnostics, format }
+  if (to === 'preview') return { output: `${previewPlain(song).text}\n`, diagnostics, format }
   if (to === 'arrangements') return { output: song.arrangements.map((entry) => `${entry.name}\n`).join(''), diagnostics, format }
 
   const rendered = renderSongHtml(song, { arrangement, capo })
