@@ -228,3 +228,17 @@ test('parse → serialize → parse is stable over a deterministic structural co
     roundTrips(parseSong(source).song)
   }
 })
+
+test('a keyed song2html title is not mistaken for an inline chord', () => {
+  const result = convert({ source: 'Broken [G]\ntempo: 72\n\nVerse:\n    Hello world\n', to: 'json' })
+  assert.equal(result.format, 'song2html')
+  assert.ok(result.diagnostics.some((entry) => entry.code === 'MISSING_SECTIONS'))
+  assert.equal(importSong('Amazing [G]grace how [C]sweet\n').detectedFormat, 'inline-brackets')
+})
+
+test('OpenSong mapping points at the chord line and explicit imports keep candidates', () => {
+  const xml = '<song><title>T</title><lyrics>[V1]\n.G       C\n Hello world</lyrics></song>'
+  const imported = importSong(xml, { format: 'opensong', includeOriginalMapping: true })
+  assert.equal(imported.mapping[0].sourceLine, 2)
+  assert.equal(imported.candidates[0].format, 'opensong')
+})
