@@ -181,7 +181,10 @@ export function detectFormat(source) {
   assertSourceLimits(source)
   const candidates = []
   const chordProDirectives = (source.match(/\{(?:title|t|key|artist|author|composer|start_of_|end_of_|soc|sov|sob|eoc|eov|eob|comment|c|tempo|capo)\s*[:}]/gi) || []).length
-  const inlineChords = [...source.matchAll(/\[([^\]\n]{1,24})\]/g)].filter((match) => chordToken(match[1].trim())).length
+  // A song2html title line ends with its key ("Title [G]"); that bracket is not an inline chord.
+  const titleKey = /^([^\n]*\S[ \t]*)\[[^\]\n]+][ \t]*(?:\r?\n|$)/.exec(source)
+  const titleKeyAt = titleKey ? titleKey[1].length : -1
+  const inlineChords = [...source.matchAll(/\[([^\]\n]{1,24})\]/g)].filter((match) => match.index !== titleKeyAt && chordToken(match[1].trim())).length
   if (chordProDirectives) candidates.push({ format: 'chordpro', confidence: Math.min(0.99, 0.78 + chordProDirectives * 0.04 + (inlineChords ? 0.1 : 0)), evidence: [`Found ${chordProDirectives} ChordPro directives`] })
   if (/<song[\s>]/i.test(source) && /<(title|lyrics|presentation)>/i.test(source)) candidates.push({ format: 'opensong', confidence: 0.99, evidence: ['Found OpenSong XML song structure'] })
   if (/^\s*Sections:\s*$/mi.test(source)) candidates.push({ format: 'song2html', confidence: 0.99, evidence: ['Found Sections: header'] })
@@ -414,11 +417,12 @@ export function importOpenSong(source, options = {}) {
       const chordLine = line.slice(1)
       const next = lines[index + 1]
       const hasLyric = next != null && /^[ 1-9]/.test(next) && next.trim()
+      const sourceLine = index + 1
       const converted = hasLyric ? alignChords(chordLine, next.slice(1).replace(/\|+/g, ' '), index + 2, diagnostics, options.align === 'column' ? 'column' : 'word') : instrumentalLine(chordLine, index + 1, diagnostics)
       if (hasLyric) index++
       current.lyrics.push(converted.lyric)
       current.chords.push(...converted.chords)
-      mapping.push({ sourceLine: index + 1, section: current.name, chordCount: converted.chords.length })
+      mapping.push({ sourceLine, section: current.name, chordCount: converted.chords.length })
     } else if (/^[ 1-9]/.test(line)) {
       if (/^[1-9]/.test(line)) diagnostics.push(diag('info', 'MULTI_VERSE_LINE', 'Numbered OpenSong verse lines are imported as plain lyric lines', index + 1))
       current.lyrics.push(protectCarets(line.slice(1).replace(/\|+/g, ' ')))
@@ -446,9 +450,8 @@ const IMPORTERS = { chordpro: importChordPro, 'inline-brackets': importInlineBra
 
 export function importSong(source, options = {}) {
   let format = options.format || 'auto'
-  let candidates = []
+  const candidates = detectFormat(source)
   if (format === 'auto') {
-    candidates = detectFormat(source)
     if (!candidates.length) return { detectedFormat: null, confidence: 0, song: null, song2htmlSource: null, diagnostics: [diag('error', 'UNKNOWN_FORMAT', 'Could not determine the source chart format', 1)], candidates }
     if (candidates.length > 1 && candidates[0].confidence - candidates[1].confidence < 0.1) return { detectedFormat: null, confidence: candidates[0].confidence, song: null, song2htmlSource: null, diagnostics: [diag('error', 'AMBIGUOUS_FORMAT', `Format is ambiguous between ${candidates[0].format} and ${candidates[1].format}; select one explicitly`, 1)], candidates }
     format = candidates[0].format
