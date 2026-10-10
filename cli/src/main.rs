@@ -47,8 +47,18 @@ enum To {
     Ast,
     /// Canonical song2html source (convert or normalize charts)
     Song2html,
+    /// Plain text with [Chord] markers, for checking caret placement
+    Preview,
     /// Arrangement names, one per line
     Arrangements,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+enum DiagnosticFormat {
+    /// file:line: severity: message [CODE]
+    Text,
+    /// One {"file", "diagnostics"} JSON object per input
+    Json,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
@@ -119,6 +129,10 @@ struct Cli {
     #[arg(long)]
     strict: bool,
 
+    /// Diagnostics format on standard error
+    #[arg(long, value_enum, default_value_t = DiagnosticFormat::Text)]
+    diagnostics: DiagnosticFormat,
+
     /// Only print error diagnostics
     #[arg(short, long)]
     quiet: bool,
@@ -154,19 +168,17 @@ struct Response {
     #[serde(default)]
     output: String,
     #[serde(default)]
-    diagnostics: Vec<Diagnostic>,
+    diagnostics: Vec<serde_json::Value>,
     #[serde(default)]
     error: Option<String>,
 }
 
-#[derive(Deserialize, Debug)]
-struct Diagnostic {
-    severity: String,
-    #[serde(default)]
-    code: String,
-    message: String,
-    #[serde(default)]
-    line: Option<u64>,
+fn field<'a>(diagnostic: &'a serde_json::Value, name: &str) -> &'a str {
+    diagnostic.get(name).and_then(|value| value.as_str()).unwrap_or("")
+}
+
+fn is_error(diagnostic: &serde_json::Value) -> bool {
+    field(diagnostic, "severity") == "error"
 }
 
 /// QuickJS runtime with the song2html modules loaded.
@@ -213,7 +225,7 @@ fn extension(to: To) -> &'static str {
     match to {
         To::Page | To::Fragment => "html",
         To::Json | To::Ast => "json",
-        To::Song2html => "txt",
+        To::Song2html | To::Preview => "txt",
         To::Arrangements => "list",
     }
 }
@@ -229,15 +241,20 @@ fn read_input(path: Option<&Path>) -> io::Result<String> {
     }
 }
 
-fn report(label: &str, diagnostics: &[Diagnostic], quiet: bool) {
+fn report(label: &str, diagnostics: &[serde_json::Value], quiet: bool, format: DiagnosticFormat) {
+    let shown: Vec<&serde_json::Value> = diagnostics.iter().filter(|diagnostic| !quiet || is_error(diagnostic)).collect();
     let stderr = io::stderr();
     let mut stderr = stderr.lock();
-    for diagnostic in diagnostics {
-        if quiet && diagnostic.severity != "error" {
-            continue;
-        }
-        let place = diagnostic.line.map(|line| format!("{label}:{line}")).unwrap_or_else(|| label.to_string());
-        let _ = writeln!(stderr, "{place}: {}: {} [{}]", diagnostic.severity, diagnostic.message, diagnostic.code);
+    if format == DiagnosticFormat::Json {
+        let _ = writeln!(stderr, "{}", serde_json::json!({ "file": label, "diagnostics": shown }));
+        return;
+    }
+    for diagnostic in shown {
+        let place = match diagnostic.get("line").and_then(|line| line.as_u64()) {
+            Some(line) => format!("{label}:{line}"),
+            None => label.to_string(),
+        };
+        let _ = writeln!(stderr, "{place}: {}: {} [{}]", field(diagnostic, "severity"), field(diagnostic, "message"), field(diagnostic, "code"));
     }
 }
 
@@ -274,8 +291,8 @@ fn run(cli: Cli) -> Result<bool, String> {
         if !response.ok {
             return Err(format!("{label}: {}", response.error.unwrap_or_else(|| "conversion failed".into())));
         }
-        report(&label, &response.diagnostics, cli.quiet);
-        let has_errors = response.diagnostics.iter().any(|diagnostic| diagnostic.severity == "error");
+        report(&label, &response.diagnostics, cli.quiet, cli.diagnostics);
+        let has_errors = response.diagnostics.iter().any(is_error);
         clean &= !has_errors;
         if cli.check {
             continue;
@@ -342,6 +359,13 @@ mod tests {
         let source = "{title: Test}\n{key: D}\n{start_of_chorus}\n[D]Sing [G]out\n{end_of_chorus}\n";
         let response = engine.convert(&request(source, "song2html")).unwrap();
         assert!(response.output.contains("chorus: D G"), "{}", response.output);
+    }
+
+    #[test]
+    fn previews_caret_placement() {
+        let engine = Engine::new().unwrap();
+        let response = engine.convert(&request(SONG, "preview")).unwrap();
+        assert!(response.output.contains("A[1]mazing [4]grace"), "{}", response.output);
     }
 
     #[test]

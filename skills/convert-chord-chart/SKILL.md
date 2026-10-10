@@ -9,7 +9,7 @@ This skill teaches you how to convert a standard "chords-over-lyrics" text file 
 
 ## Deterministic-first rule
 
-Call `detect_format`, then `import_song`, before manually rewriting a chart. ChordPro, inline bracket chords, OpenSong XML, chords-over-lyrics, and existing song2html source have deterministic importers. Preserve their chord sequence, placement mapping, provenance, and diagnostics. Use model judgment only to propose explicit, unapplied corrections for unsupported or ambiguous input; never silently simplify or invent musical data.
+Import first, before manually rewriting a chart: run `song2html chart.txt -t song2html` (CLI) or call `detect_format` then `import_song` (MCP). ChordPro, inline bracket chords, OpenSong XML, chords-over-lyrics, and existing song2html source have deterministic importers. Preserve their chord sequence, placement mapping, provenance, and diagnostics. Use model judgment only to propose explicit, unapplied corrections for unsupported or ambiguous input; never silently simplify or invent musical data.
 
 ## Standard Chord Chart Input (typical formats)
 
@@ -272,19 +272,27 @@ If the original uses Nashville numbers, keep them — song2html supports them na
 ```
 
 ### Different chords per verse
-If Verse 1 and Verse 2 genuinely have different chord progressions (rare), define separate chord sections:
+If Verse 1 and Verse 2 genuinely have different chord progressions, define a second chord definition and point the section at it with `<chords NAME>`:
 ```
-  verse-1: G C D G
-  verse-2: Am C D G
+  verse: G C D G
+  verse2: Am C D G
+
+Sections:
+  Verse 1:
+    ^Lyrics ...
+  Verse 2:
+    <chords verse2>
+    ^Lyrics ...
 ```
-Then name your lyric sections to match: `Verse-1 1:` and `Verse-2 1:`.
 
 ## Workflow
 
-1. Read the input chord chart
-2. Call `detect_format`, then `import_song` (use `format: "chords-over-lyrics"` when auto-detect is ambiguous)
-3. Call `preview_song` on the imported `song2htmlSource` and read diagnostics (`SNAP_TO_FOLLOWING_WORD`, `INSTRUMENTAL_CHORD_LINE`, `CHORD_BEYOND_LYRIC`)
-4. Apply explicit musical corrections only where the preview is wrong; do not silently invent chords
-5. Use `validate_song` to check for errors
-6. Use `write_song_file` to save the result (prefer `.s2h` alongside the original chart)
-7. Optionally use `render_html` for a browser page
+With the `song2html` CLI (or `npx -y song2html`):
+
+1. `song2html chart.txt -t song2html --diagnostics json > chart.s2h` (add `-f chords-over-lyrics` when auto-detect is ambiguous)
+2. `song2html -t preview chart.s2h` and read the diagnostics (`SNAP_TO_FOLLOWING_WORD`, `INSTRUMENTAL_CHORD_LINE`, `CHORD_BEYOND_LYRIC`)
+3. Apply explicit musical corrections only where the preview is wrong; do not silently invent chords
+4. `song2html --check chart.s2h` until it exits 0
+5. Optionally `song2html chart.s2h -o chart.html` for a browser page
+
+With MCP tools: `detect_format` → `import_song` → `preview_song` → corrections → `validate_song` → `write_song_file` (prefer `.s2h` alongside the original chart) → optionally `render_html`.

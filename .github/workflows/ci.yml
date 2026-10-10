@@ -29,3 +29,9 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - working-directory: cli
         run: cargo test
+      - working-directory: cli
+        run: cargo build
+      - name: Native and Node CLIs agree
+        env:
+          S2H_NATIVE_BIN: cli/target/debug/song2html
+        run: node --test test/cli.test.js
