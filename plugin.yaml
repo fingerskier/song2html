@@ -14,22 +14,9 @@ tags:
   - html
   - nashville-number
   - mcp
-config_schema:
-  library_root:
-    type: str
-    description: >-
-      Optional absolute directory that confines read, write, and list
-      operations. Environment SONG2HTML_LIBRARY_ROOT overrides this setting.
 provides_tools:
-  - parse_song
-  - validate_song
-  - create_song
-  - read_song_file
-  - write_song_file
-  - list_song_files
-  - transpose_song
-  - detect_format
   - import_song
+  - validate_song
   - preview_song
   - render_html
 provides_commands:

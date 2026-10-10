@@ -41,6 +41,11 @@ test('Hermes native plugin matches package version and ships register entry', as
   assert.match(init, /def invoke_tool\(/)
   assert.match(after, /npm install/)
 
+  const tools = await readJson('../tools.json')
+  const provided = yaml.match(/^provides_tools:\n((?:  - .+\n)+)/m)[1].trim().split('\n').map((line) => line.replace(/^\s*- /, ''))
+  assert.deepEqual(provided, tools.map((tool) => tool.name))
+  assert.match(init, /tools\.json/)
+
   await access(new URL('../bin/song2html-tool.js', import.meta.url), constants.R_OK)
   await access(new URL('../skills/song2html/SKILL.md', import.meta.url), constants.R_OK)
   await access(new URL('../skills/convert-chord-chart/SKILL.md', import.meta.url), constants.R_OK)

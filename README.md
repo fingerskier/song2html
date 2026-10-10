@@ -248,16 +248,21 @@ hermes plugins enable song2html
 
 Restart the gateway from an external shell. The plugin registers the same tools as the MCP server, the `song2html` and `convert-chord-chart` skills, and `/convert-chord-chart`. Node.js >= 20 is required.
 
-Optional file-tool confinement: `SONG2HTML_LIBRARY_ROOT` or `hermes config set plugins.entries.song2html.settings.library_root /absolute/path`.
+## MCP tools
 
-## MCP tools and filesystem policy
+The MCP server is for hosts without a shell; agents that can run commands should use the CLI. Run it with `npm run start:mcp`. It exposes four read-only tools, defined once in [`tools.json`](tools.json) and shared by the MCP server, the Hermes plugin, and `song2html-tool`:
 
-Run the stdio MCP server with `npm run start:mcp`. Its parse/read tools support an optional `include` list so callers can omit generated HTML or source and conserve model context. `preview_song` returns compact `[Chord]lyric` text for caret checks. `render_html` supports `print`, `stage`, `compact`, `large-type`, and `dark` themes. `list_song_files` scans `.txt`, `.s2h`, `.pro`, `.chopro`, and `.chordpro`.
+| Tool | Purpose |
+|------|---------|
+| `import_song` | Convert ChordPro, inline brackets, OpenSong, chords-over-lyrics, or song2html (auto-detected) to canonical song2html source; optional `transpose` |
+| `validate_song` | Diagnostics, metadata, and arrangement names |
+| `preview_song` | `[Chord]lyric` text for checking caret placement |
+| `render_html` | Standalone page or fragment, with `theme`, `arrangement`, and `capo` |
+
+The tools take and return text; they never read or write files. Arguments are validated against `tools.json` in every host.
 
 The library now exposes a canonical **Song AST** for structured keys, chords, lyric/chord events, stable section identities, arrangements, source locations, and diagnostics. Parsing, validation, creation, transposition, rendering normalization, and MCP operations share this model. Deterministic importers support ChordPro, inline bracket notation, OpenSong XML, chords-over-lyrics text, and song2html itself. See [AST.md](AST.md) for the schema, API, round-trip guarantees, importer behavior, and examples.
 
-The MCP server also exposes `detect_format`, `import_song`, and `preview_song`. Importers preserve observed chord order and placement, report ambiguity instead of silently guessing, and retain source provenance. The legacy default `songToHtml()` API remains compatible; AST operations are named exports.
-
-The file tools are intended for a trusted local MCP process. Set `SONG2HTML_LIBRARY_ROOT=/absolute/path/to/library` to confine all read, write, and list operations to one directory (symlinks are resolved before the check). Without it the tools can reach any path the server process can. Writes never clobber a file that appears concurrently, replacements are atomic and keep the existing file's permissions, refuse existing destinations unless `overwrite: true`, and refuse error-severity diagnostics unless `allowInvalid: true`; `dryRun: true` validates without writing.
+Importers preserve observed chord order and placement, report ambiguity instead of silently guessing, and retain source provenance. The legacy default `songToHtml()` API remains compatible; AST operations are named exports.
 
 `npm test` is read-only. Regenerate checked-in fixture HTML explicitly with `npm run fixtures:update`.

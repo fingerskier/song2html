@@ -34,21 +34,23 @@ function runTool(name, args) {
   })
 }
 
-test('song2html-tool parse_song and detect_format match MCP payloads', async () => {
-  const parsed = await runTool('parse_song', { source, include: ['song', 'errata'] })
-  assert.equal(parsed.code, 0, parsed.stderr)
-  const body = JSON.parse(parsed.stdout)
+test('song2html-tool validate_song and import_song match MCP payloads', async () => {
+  const validated = await runTool('validate_song', { source })
+  assert.equal(validated.code, 0, validated.stderr)
+  const body = JSON.parse(validated.stdout)
   assert.equal(body.song.key, 'G')
-  assert.equal(body.html, undefined)
-  assert.deepEqual(body.errata, [])
+  assert.deepEqual(body.diagnostics, [])
 
-  const detected = await runTool('detect_format', { source: '{title: Hi}\\n[G]hello' })
-  assert.equal(detected.code, 0, detected.stderr)
-  assert.equal(JSON.parse(detected.stdout).candidates[0].format, 'chordpro')
+  const imported = await runTool('import_song', { source: '{title: Hi}\n{key: G}\n[G]hello' })
+  assert.equal(imported.code, 0, imported.stderr)
+  assert.equal(JSON.parse(imported.stdout).detectedFormat, 'chordpro')
 })
 
-test('song2html-tool rejects unknown tools', async () => {
-  const result = await runTool('not_a_tool', {})
-  assert.equal(result.code, 1)
-  assert.match(result.stderr, /Unknown tool/)
+test('song2html-tool rejects unknown tools and invalid arguments', async () => {
+  const unknown = await runTool('not_a_tool', {})
+  assert.equal(unknown.code, 1)
+  assert.match(unknown.stderr, /Unknown tool/)
+  const invalid = await runTool('render_html', { source, capo: 12 })
+  assert.equal(invalid.code, 1)
+  assert.match(invalid.stderr, /at most 11/)
 })

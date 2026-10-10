@@ -18,6 +18,7 @@
   },
   "files": [
     "index.js",
+    "tools.json",
     "AST.md",
     "SPEC.md",
     "bin/",
@@ -51,7 +52,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
-    "zod": "^3.25.76"
+    "@modelcontextprotocol/sdk": "^1.30.0"
   }
 }
