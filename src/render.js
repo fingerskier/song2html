@@ -1,6 +1,7 @@
-import songToHtml from '../index.js'
-import { formatChord, formatKey, parseSong, serializeSong } from './ast.js'
+import { formatChord, formatKey, parseSong, validateSong } from './ast.js'
+import { escapeHtml, renderSongHtml } from './html.js'
 
+export { escapeHtml }
 export const THEMES = ['print', 'stage', 'compact', 'large-type', 'dark']
 
 export function previewPlain(source) {
@@ -28,23 +29,25 @@ export function previewPlain(source) {
   return { text: lines.join('\n'), song, diagnostics: parsed.diagnostics }
 }
 
-export function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (character) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;',
-  })[character])
+/**
+ * Renders a complete standalone HTML page.
+ * @param {string|object} source - song2html source text or a Song AST.
+ * @param {string} [arrangement]
+ * @param {{ theme?: string, language?: string, capo?: number }} [options]
+ */
+export function renderStandalone(source, arrangement = '', options = {}) {
+  const parsed = typeof source === 'string' ? parseSong(source) : { song: source, diagnostics: validateSong(source) }
+  const rendered = renderSongHtml(parsed.song, { arrangement, capo: options.capo })
+  const { song } = rendered
+  const errata = [...parsed.diagnostics, ...rendered.diagnostics]
+  return { page: wrapPage(rendered, options), song, errata }
 }
 
-export function renderStandalone(source, arrangement = '', options = {}) {
-  const parsed = typeof source === 'string' ? parseSong(source) : { song: source, diagnostics: [] }
-  const { html, song } = songToHtml(serializeSong(parsed.song), arrangement)
-  const errata = parsed.diagnostics
+/** Wraps a renderSongHtml() result in a standalone themed HTML document. */
+export function wrapPage({ html, song }, options = {}) {
   const theme = THEMES.includes(options.theme) ? options.theme : 'print'
   const language = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(options.language || '') ? options.language : 'en'
-  const page = `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="${escapeHtml(language)}" data-s2h-theme="${theme}">
 <head>
 <meta charset="UTF-8">
@@ -63,6 +66,8 @@ export function renderStandalone(source, arrangement = '', options = {}) {
   .s2h-chords-title { margin: 0 0 0.5rem; font-size: 1.1rem; }
   .s2h-chord-line { margin: 0.3rem 0; }
   .s2h-chord-section-label { font-weight: bold; margin-right: 0.5rem; }
+  .s2h-repeat-count { font-style: italic; color: var(--s2h-muted); }
+  .s2h-capo-shapes { font-style: italic; }
   .s2h-chord-line .s2h-chord { display: inline-block; background: var(--s2h-chip); padding: 0.1rem 0.4rem; border-radius: 3px; margin: 0 0.15rem; font-weight: bold; font-size: 0.95rem; }
   .s2h-section { margin-bottom: 1.5rem; break-inside: avoid-page; }
   .s2h-section-title { font-size: 1.1rem; color: var(--s2h-muted); margin: 0 0 0.5rem; border-left: 3px solid currentColor; padding-left: 0.5rem; break-after: avoid; }
@@ -89,5 +94,4 @@ export function renderStandalone(source, arrangement = '', options = {}) {
 ${html}
 </body>
 </html>`
-  return { page, song, errata }
 }

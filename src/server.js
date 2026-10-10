@@ -12,6 +12,8 @@ const server = new McpServer({
   description: 'Read, write, parse, validate, and convert song chord charts using the song2html format.',
 })
 
+const capoSchema = z.number().int().min(0).max(11).optional().describe('Capo fret (0-11): render chord shapes for a capo on this fret; overrides capo: metadata')
+
 function registerTool(name, description, schema) {
   server.tool(name, description, schema, async (args) => runTool(name, args))
 }
@@ -22,6 +24,7 @@ registerTool(
   {
     source: z.string().describe('The raw song2html source text'),
     arrangement: z.string().optional().describe('Optional arrangement name to render'),
+    capo: capoSchema,
     include: z.array(z.enum(PARSE_FIELDS)).optional().describe('Result fields to include; defaults to compatibility fields'),
   },
 )
@@ -41,15 +44,17 @@ registerTool(
     title: z.string().describe('Song title'),
     key: z.string().optional().describe('Musical key (e.g. "G", "F#", "Bbm")'),
     author: z.string().optional().describe('Comma-separated author names'),
-    tempo: z.number().optional().describe('BPM'),
+    tempo: z.number().int().positive().optional().describe('BPM'),
+    capo: z.number().int().min(0).max(11).optional().describe('Capo fret (0-11)'),
     time: z.string().optional().describe('Time signature (e.g. "4/4", "3/4")'),
     owner: z.string().optional().describe('Copyright owner'),
     license: z.string().optional().describe('License identifier or name'),
-    chords: z.record(z.string(), z.string()).describe('Map of section type to chord progression (e.g. {"verse": "G C D G", "chorus": "C D Em G"})'),
+    chords: z.record(z.string(), z.string()).describe('Map of section type to chord progression (e.g. {"verse": "G C D G", "chorus": "(C D) x2 Em G"}); repeat groups and newlines are preserved'),
     sections: z.array(z.object({
       name: z.string().describe('Section name (e.g. "Verse 1", "Chorus")'),
       lyrics: z.array(z.string()).describe('Array of lyric lines with ^ caret markers for chord placement'),
-      transpose: z.number().optional().describe('Half-step transpose offset for Nashville numbers'),
+      transpose: z.number().int().optional().describe('Half-step transpose offset for Nashville numbers'),
+      chords: z.string().nullable().optional().describe('Chord definition name to use (defaults to the first word of the section name); null for none'),
     })).describe('Ordered lyric sections'),
     arrangements: z.record(z.string(), z.array(z.string())).optional().describe('Named arrangements mapping to arrays of section names'),
   },
@@ -61,6 +66,7 @@ registerTool(
   {
     path: z.string().describe('Absolute path to the song file'),
     arrangement: z.string().optional().describe('Optional arrangement name'),
+    capo: capoSchema,
     include: z.array(z.enum(['source', ...PARSE_FIELDS])).optional().describe('Result fields to include; defaults to compatibility fields'),
   },
 )
@@ -79,18 +85,20 @@ registerTool(
 
 registerTool(
   'list_song_files',
-  'List song files (*.txt, *.s2h, *.pro, *.chopro, *.chordpro) in a directory and return basic metadata (title, key, authors) for each.',
+  'List song files (*.txt, *.s2h, *.song, *.pro, *.chopro, *.chordpro) in a directory, optionally recursively, and return basic metadata (title, key, authors) for each.',
   {
     directory: z.string().describe('Absolute path to the directory to scan'),
+    extensions: z.array(z.string()).optional().describe('File extensions to include instead of the defaults'),
+    recursive: z.boolean().default(false).describe('Scan subdirectories'),
   },
 )
 
 registerTool(
   'transpose_song',
-  'Transpose a song\'s named chords by a given number of half steps. Returns the modified source text with transposed chords. Nashville numbers are unaffected (they transpose automatically via the key).',
+  'Transpose a song by a given number of half steps: the key and every named chord (root, bass, treble, and melody notes), spelled for the new key. Nashville numbers are unchanged (they follow the key).',
   {
     source: z.string().describe('The song2html source text'),
-    steps: z.number().describe('Number of half steps to transpose (positive = up, negative = down)'),
+    steps: z.number().int().min(-11).max(11).describe('Number of half steps to transpose (positive = up, negative = down)'),
   },
 )
 
@@ -109,7 +117,8 @@ registerTool(
     sourceName: z.string().optional().describe('Original filename or provenance label'),
     title: z.string().optional().describe('Title override for formats without metadata'),
     key: z.string().optional().describe('Key override for formats without metadata'),
-    align: z.enum(['word', 'column']).optional().describe('Chords-over-lyrics caret alignment; default word'),
+    align: z.enum(['word', 'column']).optional().describe('Chords-over-lyrics and OpenSong caret alignment; default word'),
+    tabWidth: z.number().int().min(1).max(16).optional().describe('Tab stop width for chords-over-lyrics column alignment (default 8)'),
     includeOriginalMapping: z.boolean().default(false).describe('Include source-line to imported-event mapping'),
   },
 )
@@ -130,6 +139,7 @@ registerTool(
     arrangement: z.string().optional().describe('Optional arrangement name'),
     theme: z.enum(THEMES).optional().describe('Built-in rendering theme'),
     language: z.string().optional().describe('BCP 47 document language (defaults to en)'),
+    capo: capoSchema,
   },
 )
 

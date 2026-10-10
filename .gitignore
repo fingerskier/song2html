@@ -7,3 +7,6 @@ test/fixtures/output/
 # Python
 __pycache__/
 *.py[cod]
+
+# Rust CLI build output
+cli/target/

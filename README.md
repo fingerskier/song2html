@@ -2,6 +2,31 @@
 
 Song charts are translated into HTML so they can be displayed and stylized in a web browser.
 
+## Command-line tool
+
+Prebuilt `song2html` binaries for Linux, macOS, and Windows are attached to each [GitHub release](https://github.com/fingerskier/song2html/releases). They are built by `.github/workflows/release.yml` whenever a `v*` tag is pushed. To build from source, run `cargo build --release` in `cli/`.
+
+```sh
+song2html song.txt > song.html                     # standalone page
+song2html song.txt --theme stage --capo 3 -o out.html
+song2html chart.pro --to song2html > song.txt      # import ChordPro (also OpenSong, inline brackets, chords-over-lyrics)
+song2html song.txt --transpose -2 --to song2html   # transpose and rewrite
+song2html songs/*.txt --out-dir site/              # batch
+song2html --check songs/*.txt                      # validate; exit 1 on errors
+cat song.txt | song2html --to fragment -a Live     # stdin, one arrangement, HTML fragment
+```
+
+Output formats (`--to`): `page`, `fragment`, `json`, `ast`, `song2html`, `arrangements`. Diagnostics go to stderr as `file:line: severity: message [CODE]`. The binary runs the same JavaScript modules that ship in the npm package, embedded in QuickJS, so the CLI and the library always parse identically.
+
+## Library
+
+```js
+import songToHtml, { parseSong, renderSongHtml, renderStandalone, importSong, transposeSongAst } from 'song2html'
+
+const { html, song, errata } = songToHtml(source, 'Live', { capo: 2 })
+const { page } = renderStandalone(source, '', { theme: 'dark', capo: 2 })
+```
+
 
 ## Example Input Format
 
@@ -73,6 +98,7 @@ Arrangements:
     * `author`
     * `owner` (rendered as a copyright notice in every page footer)
     * `license` (rendered in every page footer)
+    * `capo` (0-11; chords render as shapes for that fret, and the header shows e.g. `Capo: 3 (G shapes)`)
     * Other keys are presumed to be section names for chord charts.
       * Any chords after the section-name `<song-section-name>:` are assumed to be chords for that section- even if they span multiple lines.
       * Groups of chords in parentheses can be repeated by a following xN, where N is the number of times to repeat.
@@ -95,6 +121,7 @@ Arrangements:
     * These segments can be named anything.
     * If a section name starts with the same word as a section in the chord chart (after the title), it will use those chords in that section.
       * e.g. 'Chorus' in the chord chart will be used in any section named 'Chorus', 'Chorus 1', 'Chorus A', etc.
+      * A `<chords NAME>` line inside a section links it to a different chord definition (`<chords none>` for none).
     * Carets within the song sections indicate where chords go.
       * Chords are mapped from the corresponding chord chart metadata.
       * If there are more carets than chords in a line of lyrics, it will loop back to the beginning of the chord chart and continue assigning chords.
@@ -181,11 +208,16 @@ Arrangements:
   * `-`
     * G-BCD or G-bcd or G-671 - chord melody
       * the part after the dash is the melody notes
-      * melody notes are not translated/transposed- just displayed as-is
+      * numeric melody notes are scale degrees of the key; named melody notes move with transposition and capo
   * `|`
   * `N#`
     * A7 or 67 - position indicator
       * a number after a chord indicates the position of the chord on the fretboard, or octave on piano
+
+  * `N.C.`
+    * no chord
+  * `b`/`#` before a number
+    * b7, #4dim - altered scale degrees (b7 in G is F)
 
 ## Grok Build / Claude Code plugin
 
@@ -220,6 +252,6 @@ The library now exposes a canonical **Song AST** for structured keys, chords, ly
 
 The MCP server also exposes `detect_format`, `import_song`, and `preview_song`. Importers preserve observed chord order and placement, report ambiguity instead of silently guessing, and retain source provenance. The legacy default `songToHtml()` API remains compatible; AST operations are named exports.
 
-The file tools are intended for a trusted local MCP process. Set `SONG2HTML_LIBRARY_ROOT=/absolute/path/to/library` to confine all read, write, and list operations to one directory. Writes are atomic, refuse existing destinations unless `overwrite: true`, and refuse error-severity diagnostics unless `allowInvalid: true`; `dryRun: true` validates without writing.
+The file tools are intended for a trusted local MCP process. Set `SONG2HTML_LIBRARY_ROOT=/absolute/path/to/library` to confine all read, write, and list operations to one directory (symlinks are resolved before the check). Without it the tools can reach any path the server process can. Writes never clobber a file that appears concurrently, replacements are atomic and keep the existing file's permissions, refuse existing destinations unless `overwrite: true`, and refuse error-severity diagnostics unless `allowInvalid: true`; `dryRun: true` validates without writing.
 
 `npm test` is read-only. Regenerate checked-in fixture HTML explicitly with `npm run fixtures:update`.

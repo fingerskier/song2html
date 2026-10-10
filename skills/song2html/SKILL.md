@@ -34,7 +34,7 @@ Arrangements:
 ### Key Syntax Rules
 
 - **Title line**: first line, optional key in brackets `[G]`, `[F#m]`, `[Bb]`
-- **Metadata**: 2-space indented — `author:`, `key:`, `tempo:`, `time:`, `owner:`, `license:`
+- **Metadata**: 2-space indented — `author:`, `key:`, `tempo:`, `time:`, `owner:`, `license:`, `capo:`
 - **Chord definitions**: 2-space indented — `section-name: chord1 chord2 ...`
 - **Sections header**: `Sections:` followed by named sections with 4-space indented lyrics
 - **Caret `^`**: marks where the next chord is placed above lyrics
@@ -42,6 +42,7 @@ Arrangements:
 - **Slash chords**: `C/G` (bass), `F\A` (treble)
 - **Repetition**: `(G C) x2` expands to `G C G C`
 - **Transpose directive**: `<transpose +2>` shifts Nashville numbers
+- **Chords directive**: `<chords verse2>` links a section to a differently named chord definition
 - **Arrangements**: optional named orderings of sections
 
 ## Converting Standard Chord Charts
@@ -71,5 +72,5 @@ Hosts may prefix these names (`song2html:parse_song` or `mcp_…_parse_song`). C
 | `read_song_file` | Read a song file from disk and parse it |
 | `write_song_file` | Write source text to a file (validates first) |
 | `list_song_files` | Scan a directory for song files and summarize each |
-| `transpose_song` | Transpose named chords by N half steps |
+| `transpose_song` | Transpose key and named chords by N half steps |
 | `render_html` | Generate a standalone HTML page with embedded styles |

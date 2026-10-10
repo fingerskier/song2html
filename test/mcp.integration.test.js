@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -19,6 +19,7 @@ const parseText = (result) => JSON.parse(result.content[0].text)
 
 test('all MCP tools execute through a real stdio client', async () => {
   const library = await mkdtemp(join(tmpdir(), 'song2html-mcp-'))
+  const outside = await mkdtemp(join(tmpdir(), 'song2html-outside-'))
   const client = new Client({ name: 'song2html-test', version: '1.0.0' })
   const transport = new StdioClientTransport({
     command: process.execPath,
@@ -101,8 +102,22 @@ test('all MCP tools execute through a real stdio client', async () => {
     })
     assert.doesNotMatch(rendered.content[0].text, /<title><\/title><script>/)
     assert.match(rendered.content[0].text, /data-s2h-theme="stage"/)
+
+    const capo = parseText(await client.callTool({ name: 'parse_song', arguments: { source, capo: 3, include: ['song', 'html'] } }))
+    assert.equal(capo.song.capo, 3)
+    assert.match(capo.html, /F#m shapes/)
+
+    // A symlink inside the library must not reach files outside it.
+    await writeFile(join(outside, 'secret.txt'), source)
+    await symlink(outside, join(library, 'escape'))
+    const escaped = await client.callTool({ name: 'read_song_file', arguments: { path: join(library, 'escape', 'secret.txt') } })
+    assert.equal(escaped.isError, true)
+    assert.match(escaped.content[0].text, /outside configured SONG2HTML_LIBRARY_ROOT/)
+    const clobber = await client.callTool({ name: 'write_song_file', arguments: { path, source } })
+    assert.equal(clobber.isError, true)
   } finally {
     await client.close()
     await rm(library, { recursive: true, force: true })
+    await rm(outside, { recursive: true, force: true })
   }
 })

@@ -1,0 +1,24 @@
+[package]
+name = "song2html"
+version = "2026.8.21"
+edition = "2021"
+description = "Convert chord-lyric song charts (song2html, ChordPro, OpenSong, chords-over-lyrics) to HTML"
+license = "MIT"
+repository = "https://github.com/fingerskier/song2html"
+publish = false
+
+[[bin]]
+name = "song2html"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+rquickjs = { version = "0.14", features = ["loader"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
