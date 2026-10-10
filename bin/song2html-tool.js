@@ -34,8 +34,11 @@ if (raw && raw.trim()) {
 
 try {
   const result = await runTool(name, args)
-  const text = result?.content?.[0]?.text ?? JSON.stringify(result)
-  process.stdout.write(text.endsWith('\n') ? text : `${text}\n`)
+  const [first, ...rest] = result?.content ?? []
+  const line = (text) => (text.endsWith('\n') ? text : `${text}\n`)
+  process.stdout.write(line(first?.text ?? JSON.stringify(result)))
+  // Further blocks carry diagnostics (render_html errors); keep stdout to the primary payload.
+  for (const block of rest) process.stderr.write(line(block.text ?? JSON.stringify(block)))
 } catch (error) {
   process.stderr.write(`${JSON.stringify({ error: error.message })}\n`)
   process.exit(1)

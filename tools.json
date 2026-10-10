@@ -1,0 +1,58 @@
+[
+  {
+    "name": "import_song",
+    "description": "Convert a chord chart to canonical song2html source. Auto-detects ChordPro, inline [G]brackets, OpenSong XML, chords-over-lyrics, or song2html, keeps every chord in order, and reports diagnostics instead of guessing. Pass format when detection is ambiguous. Optionally transposes the result.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "source": { "type": "string", "description": "Chart text" },
+        "format": { "type": "string", "enum": ["auto", "chordpro", "inline-brackets", "opensong", "chords-over-lyrics", "song2html"], "default": "auto", "description": "Input format" },
+        "transpose": { "type": "integer", "minimum": -11, "maximum": 11, "description": "Half steps to transpose the key and named chords (Nashville numbers follow the key)" },
+        "title": { "type": "string", "description": "Title override for formats without metadata" },
+        "key": { "type": "string", "description": "Key override for formats without metadata, e.g. G, F#m, Bb" },
+        "align": { "type": "string", "enum": ["word", "column"], "default": "word", "description": "Chords-over-lyrics/OpenSong caret alignment: snap to words, or keep source columns" },
+        "tabWidth": { "type": "integer", "minimum": 1, "maximum": 16, "description": "Tab stop width for chords-over-lyrics (default 8)" },
+        "include": { "type": "array", "items": { "type": "string", "enum": ["ast", "mapping", "candidates"] }, "description": "Extra result fields: Song AST, source-line mapping, format candidates" }
+      },
+      "required": ["source"]
+    }
+  },
+  {
+    "name": "validate_song",
+    "description": "Check song2html source and return diagnostics (errors must be fixed; warnings are advisory), song metadata, and arrangement names.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "source": { "type": "string", "description": "song2html source text" }
+      },
+      "required": ["source"]
+    }
+  },
+  {
+    "name": "preview_song",
+    "description": "Render song2html source as compact plain text with inline [Chord] markers, to verify caret placement without generating HTML.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "source": { "type": "string", "description": "song2html source text" }
+      },
+      "required": ["source"]
+    }
+  },
+  {
+    "name": "render_html",
+    "description": "Render song2html source to a standalone HTML page with embedded styles (or an HTML fragment).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "source": { "type": "string", "description": "song2html source text" },
+        "arrangement": { "type": "string", "description": "Arrangement to render (defaults to the first)" },
+        "theme": { "type": "string", "enum": ["print", "stage", "compact", "large-type", "dark"], "default": "print", "description": "Page theme" },
+        "language": { "type": "string", "description": "BCP 47 document language (defaults to en)" },
+        "capo": { "type": "integer", "minimum": 0, "maximum": 11, "description": "Show chord shapes for a capo on this fret; overrides capo: metadata" },
+        "fragment": { "type": "boolean", "default": false, "description": "Return only the <article> fragment instead of a full page" }
+      },
+      "required": ["source"]
+    }
+  }
+]

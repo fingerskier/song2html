@@ -152,7 +152,8 @@ If the host exposes song2html MCP tools instead of a shell:
 |-----|----------|
 | `--check` | `validate_song` |
 | `-t preview` | `preview_song` |
-| `-t song2html` on another format | `import_song` (after `detect_format`) |
-| `--transpose N -t song2html` | `transpose_song` |
-| `-o page.html` | `render_html` |
-| `-t json` | `parse_song` |
+| `-t song2html` (convert another format) | `import_song` |
+| `--transpose N -t song2html` | `import_song` with `transpose: N` |
+| `-o page.html`, `-t fragment` | `render_html` (`fragment: true`) |
+
+The MCP tools take and return text; write files with the host's own tools.

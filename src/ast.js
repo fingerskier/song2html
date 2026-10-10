@@ -385,7 +385,7 @@ function chordLinesFromInput(value) {
 }
 
 /**
- * Builds a Song AST from plain structured input (MCP create_song, importers).
+ * Builds a Song AST from plain structured input (importers, library callers).
  * Sections link to chord definitions by `section.chords` (definition name, or null
  * for none) and otherwise by the first word of the section name.
  */

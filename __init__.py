@@ -19,7 +19,7 @@ SKILLS = (
     (
         "song2html",
         "skills/song2html/SKILL.md",
-        "Read, write, parse, validate, import, transpose, and render song chord charts.",
+        "Write, validate, import, transpose, and render song chord charts.",
     ),
     (
         "convert-chord-chart",
@@ -28,24 +28,18 @@ SKILLS = (
     ),
 )
 
-PARSE_FIELDS = ["html", "arrangements", "song", "errata", "ast"]
-READ_FIELDS = ["source", *PARSE_FIELDS]
-THEMES = ["print", "stage", "compact", "large-type", "dark"]
-IMPORT_FORMATS = [
-    "auto",
-    "chordpro",
-    "inline-brackets",
-    "opensong",
-    "chords-over-lyrics",
-    "song2html",
-]
+# Tool names, descriptions, and JSON schemas shared with the MCP server.
+TOOLS = tuple(
+    (tool["name"], tool["description"], tool["inputSchema"])
+    for tool in json.loads((PLUGIN_ROOT / "tools.json").read_text(encoding="utf-8"))
+)
 
 
 def _node_bin() -> Optional[str]:
     return shutil.which("node")
 
 
-def invoke_tool(name: str, params: Optional[Mapping[str, Any]] = None, *, library_root: Optional[str] = None) -> str:
+def invoke_tool(name: str, params: Optional[Mapping[str, Any]] = None) -> str:
     """Run one song2html tool via Node and return the text payload or an error JSON object."""
     node = _node_bin()
     if node is None:
@@ -55,8 +49,6 @@ def invoke_tool(name: str, params: Optional[Mapping[str, Any]] = None, *, librar
 
     env = os.environ.copy()
     env["SONG2HTML_PLUGIN_ROOT"] = str(PLUGIN_ROOT)
-    if library_root and "SONG2HTML_LIBRARY_ROOT" not in env:
-        env["SONG2HTML_LIBRARY_ROOT"] = library_root
 
     try:
         proc = subprocess.run(
@@ -77,7 +69,8 @@ def invoke_tool(name: str, params: Optional[Mapping[str, Any]] = None, *, librar
     stdout = (proc.stdout or "").strip()
     stderr = (proc.stderr or "").strip()
     if proc.returncode == 0:
-        return stdout or json.dumps({"ok": True})
+        # The runner puts extra result blocks (such as render errors) on stderr; keep them.
+        return "\n\n".join(part for part in (stdout, stderr) if part) or json.dumps({"ok": True})
     if stderr:
         try:
             parsed = json.loads(stderr)
@@ -89,10 +82,10 @@ def invoke_tool(name: str, params: Optional[Mapping[str, Any]] = None, *, librar
     return json.dumps({"error": stdout or f"song2html tool {name!r} failed", "tool": name})
 
 
-def _handler(tool_name: str, library_root: Optional[str]):
+def _handler(tool_name: str):
     def handle(params=None, **kwargs):
         del kwargs
-        return invoke_tool(tool_name, params or {}, library_root=library_root)
+        return invoke_tool(tool_name, params or {})
 
     handle.__name__ = f"handle_{tool_name}"
     return handle
@@ -106,207 +99,12 @@ def _register_skill(ctx, name: str, relative: str, description: str) -> None:
         ctx.register_skill(name, path)
 
 
-TOOLS = (
-    (
-        "parse_song",
-        "Parse song2html source text and return metadata, HTML, arrangements, and errata.",
-        {
-            "type": "object",
-            "properties": {
-                "source": {"type": "string", "description": "The raw song2html source text"},
-                "arrangement": {"type": "string", "description": "Optional arrangement name to render"},
-                "capo": {"type": "integer", "minimum": 0, "maximum": 11, "description": "Capo fret: render chord shapes for this fret"},
-                "include": {
-                    "type": "array",
-                    "items": {"type": "string", "enum": PARSE_FIELDS},
-                    "description": "Result fields to include; defaults to compatibility fields",
-                },
-            },
-            "required": ["source"],
-        },
-    ),
-    (
-        "validate_song",
-        "Validate song2html source text and return errors or warnings without generating full HTML.",
-        {
-            "type": "object",
-            "properties": {
-                "source": {"type": "string", "description": "The raw song2html source text"},
-            },
-            "required": ["source"],
-        },
-    ),
-    (
-        "create_song",
-        "Generate song2html source text from structured title, chords, sections, and arrangements.",
-        {
-            "type": "object",
-            "properties": {
-                "title": {"type": "string", "description": "Song title"},
-                "key": {"type": "string", "description": "Musical key (e.g. G, F#, Bbm)"},
-                "author": {"type": "string", "description": "Comma-separated author names"},
-                "tempo": {"type": "integer", "description": "BPM"},
-                "capo": {"type": "integer", "minimum": 0, "maximum": 11, "description": "Capo fret"},
-                "time": {"type": "string", "description": "Time signature (e.g. 4/4, 3/4)"},
-                "owner": {"type": "string", "description": "Copyright owner"},
-                "license": {"type": "string", "description": "License identifier or name"},
-                "chords": {
-                    "type": "object",
-                    "additionalProperties": {"type": "string"},
-                    "description": "Map of section type to chord progression",
-                },
-                "sections": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string"},
-                            "lyrics": {"type": "array", "items": {"type": "string"}},
-                            "transpose": {"type": "integer"},
-                            "chords": {"type": ["string", "null"], "description": "Chord definition name; null for none"},
-                        },
-                        "required": ["name", "lyrics"],
-                    },
-                    "description": "Ordered lyric sections with caret markers",
-                },
-                "arrangements": {
-                    "type": "object",
-                    "additionalProperties": {"type": "array", "items": {"type": "string"}},
-                    "description": "Named arrangements mapping to arrays of section names",
-                },
-            },
-            "required": ["title", "chords", "sections"],
-        },
-    ),
-    (
-        "read_song_file",
-        "Read a song file from disk, parse it, and return source plus structured metadata.",
-        {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "Absolute path to the song file"},
-                "arrangement": {"type": "string", "description": "Optional arrangement name"},
-                "capo": {"type": "integer", "minimum": 0, "maximum": 11, "description": "Capo fret: render chord shapes for this fret"},
-                "include": {
-                    "type": "array",
-                    "items": {"type": "string", "enum": READ_FIELDS},
-                    "description": "Result fields to include; defaults to compatibility fields",
-                },
-            },
-            "required": ["path"],
-        },
-    ),
-    (
-        "write_song_file",
-        "Validate and write song2html source text to disk.",
-        {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "Absolute path to write the song file"},
-                "source": {"type": "string", "description": "The song2html source text to write"},
-                "allowInvalid": {"type": "boolean", "description": "Write despite error-severity diagnostics"},
-                "overwrite": {"type": "boolean", "description": "Replace an existing file"},
-                "dryRun": {"type": "boolean", "description": "Validate without writing"},
-            },
-            "required": ["path", "source"],
-        },
-    ),
-    (
-        "list_song_files",
-        "Scan a directory for song files and return title, key, and author summaries.",
-        {
-            "type": "object",
-            "properties": {
-                "directory": {"type": "string", "description": "Absolute path to the directory to scan"},
-                "extensions": {"type": "array", "items": {"type": "string"}, "description": "File extensions to include instead of the defaults"},
-                "recursive": {"type": "boolean", "description": "Scan subdirectories"},
-            },
-            "required": ["directory"],
-        },
-    ),
-    (
-        "transpose_song",
-        "Transpose the key and named chords by N half steps, spelled for the new key. Nashville numbers follow the key.",
-        {
-            "type": "object",
-            "properties": {
-                "source": {"type": "string", "description": "The song2html source text"},
-                "steps": {"type": "integer", "minimum": -11, "maximum": 11, "description": "Half steps to transpose (positive = up)"},
-            },
-            "required": ["source", "steps"],
-        },
-    ),
-    (
-        "detect_format",
-        "Rank supported external chart formats with confidence and evidence.",
-        {
-            "type": "object",
-            "properties": {
-                "source": {"type": "string", "description": "Source chart text to inspect"},
-            },
-            "required": ["source"],
-        },
-    ),
-    (
-        "import_song",
-        "Deterministically import ChordPro, inline brackets, OpenSong, chords-over-lyrics, or song2html.",
-        {
-            "type": "object",
-            "properties": {
-                "source": {"type": "string", "description": "Source chart text"},
-                "format": {"type": "string", "enum": IMPORT_FORMATS, "description": "Importer to use; default auto"},
-                "sourceName": {"type": "string", "description": "Original filename or provenance label"},
-                "title": {"type": "string", "description": "Title override for formats without metadata"},
-                "key": {"type": "string", "description": "Key override for formats without metadata"},
-                "align": {
-                    "type": "string",
-                    "enum": ["word", "column"],
-                    "description": "Chords-over-lyrics and OpenSong caret alignment; default word",
-                },
-                "tabWidth": {"type": "integer", "minimum": 1, "maximum": 16, "description": "Tab stop width for chords-over-lyrics (default 8)"},
-                "includeOriginalMapping": {
-                    "type": "boolean",
-                    "description": "Include source-line to imported-event mapping",
-                },
-            },
-            "required": ["source"],
-        },
-    ),
-    (
-        "preview_song",
-        "Render compact [Chord]lyric text for checking caret placement.",
-        {
-            "type": "object",
-            "properties": {
-                "source": {"type": "string", "description": "The raw song2html source text"},
-            },
-            "required": ["source"],
-        },
-    ),
-    (
-        "render_html",
-        "Render a standalone HTML page with embedded styles.",
-        {
-            "type": "object",
-            "properties": {
-                "source": {"type": "string", "description": "The raw song2html source text"},
-                "arrangement": {"type": "string", "description": "Optional arrangement name"},
-                "theme": {"type": "string", "enum": THEMES, "description": "Built-in rendering theme"},
-                "language": {"type": "string", "description": "BCP 47 document language (defaults to en)"},
-                "capo": {"type": "integer", "minimum": 0, "maximum": 11, "description": "Capo fret: render chord shapes for this fret"},
-            },
-            "required": ["source"],
-        },
-    ),
-)
-
-
 def _convert_chord_chart(raw_args: str) -> str:
     extra = (raw_args or "").strip()
     lines = [
         "Follow the convert-chord-chart skill.",
-        "Call detect_format, then import_song, then preview_song before rewriting a chart by hand.",
-        "Use validate_song before write_song_file. Prefer .s2h beside the original chart.",
+        "Call import_song, then preview_song, before rewriting a chart by hand.",
+        "Call validate_song until it reports no errors.",
     ]
     if extra:
         lines.extend(["", "User input:", extra])
@@ -315,14 +113,6 @@ def _convert_chord_chart(raw_args: str) -> str:
 
 def register(ctx) -> None:
     """Register song2html skills, slash command, and Node-backed tools."""
-    library_root = None
-    try:
-        value = ctx.get_config("library_root")
-        if isinstance(value, str) and value.strip():
-            library_root = value.strip()
-    except Exception:
-        library_root = None
-
     for name, relative, description in SKILLS:
         try:
             _register_skill(ctx, name, relative, description)
@@ -346,7 +136,7 @@ def register(ctx) -> None:
                 name=name,
                 toolset="song2html",
                 schema=schema,
-                handler=_handler(name, library_root),
+                handler=_handler(name),
                 description=description,
             )
         except Exception as exc:

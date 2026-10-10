@@ -1,147 +1,31 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { z } from 'zod'
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { readFile } from 'node:fs/promises'
-import { PARSE_FIELDS, THEMES, runTool } from './mcp-tools.js'
+import { TOOLS, runTool } from './mcp-tools.js'
 
 const packageMetadata = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
 
-const server = new McpServer({
-  name: 'song2html',
-  version: packageMetadata.version,
-  description: 'Read, write, parse, validate, and convert song chord charts using the song2html format.',
+const server = new Server(
+  { name: 'song2html', version: packageMetadata.version },
+  {
+    capabilities: { tools: {} },
+    instructions: 'Chord charts in the song2html text format. Write the text directly (see the song2html skill), then call validate_song and preview_song; use import_song for other formats and render_html for HTML.',
+  },
+)
+
+const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+
+server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  tools: TOOLS.map((tool) => ({ ...tool, annotations: READ_ONLY })),
+}))
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  try {
+    return await runTool(request.params.name, request.params.arguments ?? {})
+  } catch (error) {
+    return { content: [{ type: 'text', text: error.message }], isError: true }
+  }
 })
 
-const capoSchema = z.number().int().min(0).max(11).optional().describe('Capo fret (0-11): render chord shapes for a capo on this fret; overrides capo: metadata')
-
-function registerTool(name, description, schema) {
-  server.tool(name, description, schema, async (args) => runTool(name, args))
-}
-
-registerTool(
-  'parse_song',
-  'Parse song2html source text and return structured metadata, HTML output, available arrangements, and any parsing errata.',
-  {
-    source: z.string().describe('The raw song2html source text'),
-    arrangement: z.string().optional().describe('Optional arrangement name to render'),
-    capo: capoSchema,
-    include: z.array(z.enum(PARSE_FIELDS)).optional().describe('Result fields to include; defaults to compatibility fields'),
-  },
-)
-
-registerTool(
-  'validate_song',
-  'Validate song2html source text and return any errors or warnings without generating full HTML.',
-  {
-    source: z.string().describe('The raw song2html source text'),
-  },
-)
-
-registerTool(
-  'create_song',
-  'Generate song2html source text from structured input (title, key, metadata, chord definitions, lyric sections, and arrangements).',
-  {
-    title: z.string().describe('Song title'),
-    key: z.string().optional().describe('Musical key (e.g. "G", "F#", "Bbm")'),
-    author: z.string().optional().describe('Comma-separated author names'),
-    tempo: z.number().int().positive().optional().describe('BPM'),
-    capo: z.number().int().min(0).max(11).optional().describe('Capo fret (0-11)'),
-    time: z.string().optional().describe('Time signature (e.g. "4/4", "3/4")'),
-    owner: z.string().optional().describe('Copyright owner'),
-    license: z.string().optional().describe('License identifier or name'),
-    chords: z.record(z.string(), z.string()).describe('Map of section type to chord progression (e.g. {"verse": "G C D G", "chorus": "(C D) x2 Em G"}); repeat groups and newlines are preserved'),
-    sections: z.array(z.object({
-      name: z.string().describe('Section name (e.g. "Verse 1", "Chorus")'),
-      lyrics: z.array(z.string()).describe('Array of lyric lines with ^ caret markers for chord placement'),
-      transpose: z.number().int().optional().describe('Half-step transpose offset for Nashville numbers'),
-      chords: z.string().nullable().optional().describe('Chord definition name to use (defaults to the first word of the section name); null for none'),
-    })).describe('Ordered lyric sections'),
-    arrangements: z.record(z.string(), z.array(z.string())).optional().describe('Named arrangements mapping to arrays of section names'),
-  },
-)
-
-registerTool(
-  'read_song_file',
-  'Read a song file from disk, parse it, and return the source text along with structured metadata and HTML.',
-  {
-    path: z.string().describe('Absolute path to the song file'),
-    arrangement: z.string().optional().describe('Optional arrangement name'),
-    capo: capoSchema,
-    include: z.array(z.enum(['source', ...PARSE_FIELDS])).optional().describe('Result fields to include; defaults to compatibility fields'),
-  },
-)
-
-registerTool(
-  'write_song_file',
-  'Write song2html source text to a file on disk. Validates the content before writing and returns any errata.',
-  {
-    path: z.string().describe('Absolute path to write the song file'),
-    source: z.string().describe('The song2html source text to write'),
-    allowInvalid: z.boolean().default(false).describe('Write despite error-severity diagnostics'),
-    overwrite: z.boolean().default(false).describe('Replace an existing file'),
-    dryRun: z.boolean().default(false).describe('Validate without writing'),
-  },
-)
-
-registerTool(
-  'list_song_files',
-  'List song files (*.txt, *.s2h, *.song, *.pro, *.chopro, *.chordpro) in a directory, optionally recursively, and return basic metadata (title, key, authors) for each.',
-  {
-    directory: z.string().describe('Absolute path to the directory to scan'),
-    extensions: z.array(z.string()).optional().describe('File extensions to include instead of the defaults'),
-    recursive: z.boolean().default(false).describe('Scan subdirectories'),
-  },
-)
-
-registerTool(
-  'transpose_song',
-  'Transpose a song by a given number of half steps: the key and every named chord (root, bass, treble, and melody notes), spelled for the new key. Nashville numbers are unchanged (they follow the key).',
-  {
-    source: z.string().describe('The song2html source text'),
-    steps: z.number().int().min(-11).max(11).describe('Number of half steps to transpose (positive = up, negative = down)'),
-  },
-)
-
-registerTool(
-  'detect_format',
-  'Detect supported song-chart formats and return ranked confidence with evidence.',
-  { source: z.string().describe('Source chart text to inspect') },
-)
-
-registerTool(
-  'import_song',
-  'Deterministically import ChordPro, inline bracket chords, OpenSong XML, chords-over-lyrics, or song2html into the canonical Song AST.',
-  {
-    source: z.string().describe('Source chart text'),
-    format: z.enum(['auto', 'chordpro', 'inline-brackets', 'opensong', 'chords-over-lyrics', 'song2html']).default('auto'),
-    sourceName: z.string().optional().describe('Original filename or provenance label'),
-    title: z.string().optional().describe('Title override for formats without metadata'),
-    key: z.string().optional().describe('Key override for formats without metadata'),
-    align: z.enum(['word', 'column']).optional().describe('Chords-over-lyrics and OpenSong caret alignment; default word'),
-    tabWidth: z.number().int().min(1).max(16).optional().describe('Tab stop width for chords-over-lyrics column alignment (default 8)'),
-    includeOriginalMapping: z.boolean().default(false).describe('Include source-line to imported-event mapping'),
-  },
-)
-
-registerTool(
-  'preview_song',
-  'Render song2html source as compact plain text with inline [Chord] markers. Use this to verify caret placement without generating a full HTML page.',
-  {
-    source: z.string().describe('The raw song2html source text'),
-  },
-)
-
-registerTool(
-  'render_html',
-  'Render song2html source text to a complete standalone HTML page with embedded styles for previewing in a browser.',
-  {
-    source: z.string().describe('The raw song2html source text'),
-    arrangement: z.string().optional().describe('Optional arrangement name'),
-    theme: z.enum(THEMES).optional().describe('Built-in rendering theme'),
-    language: z.string().optional().describe('BCP 47 document language (defaults to en)'),
-    capo: capoSchema,
-  },
-)
-
-const transport = new StdioServerTransport()
-await server.connect(transport)
+await server.connect(new StdioServerTransport())

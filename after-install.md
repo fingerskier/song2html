@@ -23,17 +23,10 @@ In a session:
 
 - `/convert-chord-chart` follows the conversion skill
 - Load skills with `skill_view` using `song2html` or `convert-chord-chart`
-- Tools: `parse_song`, `validate_song`, `create_song`, `read_song_file`,
-  `write_song_file`, `list_song_files`, `transpose_song`, `detect_format`,
-  `import_song`, `preview_song`, `render_html`
+- Tools: `import_song`, `validate_song`, `preview_song`, `render_html`
+  (text in, text out; they never touch files)
 
-Call `detect_format` then `import_song` before rewriting a chart by hand.
-
-To confine file tools to one library directory, set `SONG2HTML_LIBRARY_ROOT` or:
-
-```bash
-hermes config set plugins.entries.song2html.settings.library_root /absolute/path
-```
+Call `import_song` then `preview_song` before rewriting a chart by hand.
 
 The Claude Code / Grok plugin at the repository root is unchanged. Hermes uses
 `plugin.yaml` plus `__init__.py`.

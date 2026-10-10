@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import os
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -20,15 +18,12 @@ def load_plugin():
 
 
 class FakeCtx:
-    def __init__(self, library_root=None):
-        self.library_root = library_root
+    def __init__(self):
         self.skills = []
         self.commands = []
         self.tools = []
 
     def get_config(self, key, default=None):
-        if key == "library_root":
-            return self.library_root
         return default
 
     def register_skill(self, name, path, description=""):
@@ -46,44 +41,39 @@ class HermesPluginTests(unittest.TestCase):
     def setUpClass(cls):
         cls.plugin = load_plugin()
 
-    def test_register_wires_skills_command_and_mcp_tool_names(self):
+    def test_register_wires_skills_command_and_shared_tool_definitions(self):
         ctx = FakeCtx()
         self.plugin.register(ctx)
         self.assertEqual([name for name, *_ in ctx.skills], ["song2html", "convert-chord-chart"])
         self.assertTrue(all(path.is_file() for _, path, _ in ctx.skills))
         self.assertEqual(ctx.commands[0][0], "convert-chord-chart")
-        self.assertEqual([name for name, *_ in ctx.tools], [name for name, *_ in self.plugin.TOOLS])
+        definitions = json.loads((REPO / "tools.json").read_text(encoding="utf-8"))
+        self.assertEqual([name for name, *_ in ctx.tools], [tool["name"] for tool in definitions])
+        self.assertEqual([schema["parameters"] for _, _, schema, *_ in ctx.tools], [tool["inputSchema"] for tool in definitions])
         self.assertTrue(all(toolset == "song2html" for _, toolset, *_ in ctx.tools))
-        self.assertIn("detect_format", ctx.commands[0][1]("Amazing Grace"))
+        self.assertIn("import_song", ctx.commands[0][1]("Amazing Grace"))
 
-    def test_invoke_parse_song(self):
+    def test_invoke_validate_song(self):
         payload = self.plugin.invoke_tool(
-            "parse_song",
-            {
-                "source": "Invoke [C]\n  verse: C G\n\nSections:\n  Verse:\n    ^hi ^there",
-                "include": ["song", "errata"],
-            },
+            "validate_song",
+            {"source": "Invoke [C]\n  verse: C G\n\nSections:\n  Verse:\n    ^hi ^there"},
         )
         body = json.loads(payload)
+        self.assertTrue(body["valid"])
         self.assertEqual(body["song"]["key"], "C")
-        self.assertNotIn("html", body)
-        self.assertEqual(body["errata"], [])
+        self.assertEqual(body["diagnostics"], [])
 
-    def test_library_root_blocks_escape(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            previous = os.environ.pop("SONG2HTML_LIBRARY_ROOT", None)
-            try:
-                payload = self.plugin.invoke_tool(
-                    "list_song_files",
-                    {"directory": str(REPO)},
-                    library_root=tmp,
-                )
-            finally:
-                if previous is not None:
-                    os.environ["SONG2HTML_LIBRARY_ROOT"] = previous
-        body = json.loads(payload)
-        self.assertIn("error", body)
-        self.assertIn("SONG2HTML_LIBRARY_ROOT", body["error"])
+    def test_render_errors_reach_the_agent(self):
+        payload = self.plugin.invoke_tool(
+            "render_html",
+            {"source": "Invoke [C]\n  verse: C G\n\nSections:\n  Verse:\n    ^hi ^there", "fragment": True, "arrangement": "Missing"},
+        )
+        self.assertTrue(payload.startswith('<article class="s2h-song">'))
+        self.assertIn("UNKNOWN_ARRANGEMENT", payload)
+
+    def test_invalid_arguments_return_an_error(self):
+        body = json.loads(self.plugin.invoke_tool("import_song", {"source": "x", "transpose": 1.5}))
+        self.assertIn("must be an integer", body["error"])
 
 
 if __name__ == "__main__":

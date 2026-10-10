@@ -9,7 +9,7 @@ This skill teaches you how to convert a standard "chords-over-lyrics" text file 
 
 ## Deterministic-first rule
 
-Import first, before manually rewriting a chart: run `song2html chart.txt -t song2html` (CLI) or call `detect_format` then `import_song` (MCP). ChordPro, inline bracket chords, OpenSong XML, chords-over-lyrics, and existing song2html source have deterministic importers. Preserve their chord sequence, placement mapping, provenance, and diagnostics. Use model judgment only to propose explicit, unapplied corrections for unsupported or ambiguous input; never silently simplify or invent musical data.
+Import first, before manually rewriting a chart: run `song2html chart.txt -t song2html` (CLI) or call `import_song` (MCP). ChordPro, inline bracket chords, OpenSong XML, chords-over-lyrics, and existing song2html source have deterministic importers. Preserve their chord sequence, placement mapping, provenance, and diagnostics. Use model judgment only to propose explicit, unapplied corrections for unsupported or ambiguous input; never silently simplify or invent musical data.
 
 ## Standard Chord Chart Input (typical formats)
 
@@ -295,4 +295,4 @@ With the `song2html` CLI (or `npx -y song2html`):
 4. `song2html --check chart.s2h` until it exits 0
 5. Optionally `song2html chart.s2h -o chart.html` for a browser page
 
-With MCP tools: `detect_format` → `import_song` → `preview_song` → corrections → `validate_song` → `write_song_file` (prefer `.s2h` alongside the original chart) → optionally `render_html`.
+With MCP tools: `import_song` → `preview_song` → corrections → `validate_song` → save with the host's file tools (prefer `.s2h` alongside the original chart) → optionally `render_html`.

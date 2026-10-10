@@ -178,13 +178,7 @@ Auto-detection refuses to choose when the top candidates are too close. Pass an 
 
 ## MCP
 
-Two tools extend the original eight:
-
-- `detect_format` returns ranked candidates and evidence.
-- `import_song` returns the AST, canonical song2html source, diagnostics, confidence, provenance, and optional original mapping.
-- `preview_song` returns compact `[Chord]lyric` text for caret-placement review.
-
-`parse_song` and `read_song_file` accept `include: ['ast']`. `create_song`, `validate_song`, `transpose_song`, write validation, library listing, and render normalization use the shared AST operations.
+`import_song` returns `detectedFormat`, `confidence`, canonical `song2htmlSource`, and diagnostics; `include: ['ast', 'mapping', 'candidates']` adds the Song AST, the source-line mapping, and ranked format candidates (always present when no format could be chosen). `validate_song`, `preview_song`, and `render_html` share the same parser. See [`tools.json`](tools.json).
 
 Identical progressions share one chord definition; sections of the same kind with different progressions get numbered definitions (`verse`, `verse2`). Literal `^` in imported lyrics becomes `ˆ` so it cannot be mistaken for a chord marker.
 
