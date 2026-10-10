@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  actions: write # delete this run's intermediate build artifacts after publishing
 
 jobs:
   test:
@@ -15,7 +16,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: npm ci
       - run: npm test
       - name: Check package.json version matches tag
@@ -46,10 +46,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: cli
-          key: ${{ matrix.target }}
       - name: Set crate version from tag
         run: sed -i.bak "s/^version = \".*\"/version = \"${GITHUB_REF_NAME#v}\"/" cli/Cargo.toml && rm cli/Cargo.toml.bak
       - name: Build
@@ -77,6 +73,8 @@ jobs:
           name: song2html-${{ matrix.target }}
           path: dist/*.*z*
           if-no-files-found: error
+          # Only needed until the release job attaches them; expire quickly if it fails.
+          retention-days: 1
 
   release:
     needs: build
@@ -93,3 +91,9 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
+      - name: Delete intermediate build artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" --paginate --jq '.artifacts[].id' |
+            xargs -r -I{} gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/{}"

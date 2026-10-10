@@ -25,5 +25,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: cli
+          # PRs restore main's cache but never save their own.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - working-directory: cli
         run: cargo test
