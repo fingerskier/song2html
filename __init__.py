@@ -115,6 +115,7 @@ TOOLS = (
             "properties": {
                 "source": {"type": "string", "description": "The raw song2html source text"},
                 "arrangement": {"type": "string", "description": "Optional arrangement name to render"},
+                "capo": {"type": "integer", "minimum": 0, "maximum": 11, "description": "Capo fret: render chord shapes for this fret"},
                 "include": {
                     "type": "array",
                     "items": {"type": "string", "enum": PARSE_FIELDS},
@@ -144,7 +145,8 @@ TOOLS = (
                 "title": {"type": "string", "description": "Song title"},
                 "key": {"type": "string", "description": "Musical key (e.g. G, F#, Bbm)"},
                 "author": {"type": "string", "description": "Comma-separated author names"},
-                "tempo": {"type": "number", "description": "BPM"},
+                "tempo": {"type": "integer", "description": "BPM"},
+                "capo": {"type": "integer", "minimum": 0, "maximum": 11, "description": "Capo fret"},
                 "time": {"type": "string", "description": "Time signature (e.g. 4/4, 3/4)"},
                 "owner": {"type": "string", "description": "Copyright owner"},
                 "license": {"type": "string", "description": "License identifier or name"},
@@ -160,7 +162,8 @@ TOOLS = (
                         "properties": {
                             "name": {"type": "string"},
                             "lyrics": {"type": "array", "items": {"type": "string"}},
-                            "transpose": {"type": "number"},
+                            "transpose": {"type": "integer"},
+                            "chords": {"type": ["string", "null"], "description": "Chord definition name; null for none"},
                         },
                         "required": ["name", "lyrics"],
                     },
@@ -183,6 +186,7 @@ TOOLS = (
             "properties": {
                 "path": {"type": "string", "description": "Absolute path to the song file"},
                 "arrangement": {"type": "string", "description": "Optional arrangement name"},
+                "capo": {"type": "integer", "minimum": 0, "maximum": 11, "description": "Capo fret: render chord shapes for this fret"},
                 "include": {
                     "type": "array",
                     "items": {"type": "string", "enum": READ_FIELDS},
@@ -214,18 +218,20 @@ TOOLS = (
             "type": "object",
             "properties": {
                 "directory": {"type": "string", "description": "Absolute path to the directory to scan"},
+                "extensions": {"type": "array", "items": {"type": "string"}, "description": "File extensions to include instead of the defaults"},
+                "recursive": {"type": "boolean", "description": "Scan subdirectories"},
             },
             "required": ["directory"],
         },
     ),
     (
         "transpose_song",
-        "Transpose named chords by N half steps. Nashville numbers follow the song key.",
+        "Transpose the key and named chords by N half steps, spelled for the new key. Nashville numbers follow the key.",
         {
             "type": "object",
             "properties": {
                 "source": {"type": "string", "description": "The song2html source text"},
-                "steps": {"type": "number", "description": "Half steps to transpose (positive = up)"},
+                "steps": {"type": "integer", "minimum": -11, "maximum": 11, "description": "Half steps to transpose (positive = up)"},
             },
             "required": ["source", "steps"],
         },
@@ -255,8 +261,9 @@ TOOLS = (
                 "align": {
                     "type": "string",
                     "enum": ["word", "column"],
-                    "description": "Chords-over-lyrics caret alignment; default word",
+                    "description": "Chords-over-lyrics and OpenSong caret alignment; default word",
                 },
+                "tabWidth": {"type": "integer", "minimum": 1, "maximum": 16, "description": "Tab stop width for chords-over-lyrics (default 8)"},
                 "includeOriginalMapping": {
                     "type": "boolean",
                     "description": "Include source-line to imported-event mapping",
@@ -286,6 +293,7 @@ TOOLS = (
                 "arrangement": {"type": "string", "description": "Optional arrangement name"},
                 "theme": {"type": "string", "enum": THEMES, "description": "Built-in rendering theme"},
                 "language": {"type": "string", "description": "BCP 47 document language (defaults to en)"},
+                "capo": {"type": "integer", "minimum": 0, "maximum": 11, "description": "Capo fret: render chord shapes for this fret"},
             },
             "required": ["source"],
         },

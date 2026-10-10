@@ -51,6 +51,7 @@ Built-in metadata keys (all optional):
 | `time:` | Time signature | `time: 4/4` |
 | `owner:` | Copyright owner shown in every page footer | `owner: Example Music LLC` |
 | `license:` | License shown in every page footer | `license: CC BY-SA 4.0` |
+| `capo:` | Capo fret (0-11); chords render as shapes for that fret | `capo: 3` |
 
 ```
 Amazing Grace [G]
@@ -66,7 +67,7 @@ Amazing Grace [G]
 
 ## 3. Chord Definitions (2-space indentation)
 
-Any key that isn't `author`, `key`, `tempo`, or `time` defines chord progressions for sections.
+Any key that isn't a metadata key (`author`, `key`, `tempo`, `time`, `owner`, `license`, `capo`) defines chord progressions for sections. `tempo` accepts an integer with an optional `bpm` suffix (`tempo: 72 bpm`).
 
 ```
   verse: G C D G
@@ -83,8 +84,10 @@ Any key that isn't `author`, `key`, `tempo`, or `time` defines chord progression
 
 #### Standard Chords
 ```
-C  Dm  Em7  Fmaj7  G7  Am  Bdim
+C  Dm  Em7  Fmaj7  G7  Am  Bdim  C7sus4  Cmadd9  C6/9  Csus2sus4  C°  Cø7  CΔ7  C+  Am7(b5)  E7#9
 ```
+
+Roots are uppercase `A`–`G` with an optional `#`, `b`, `♯`, or `♭`. `N.C.` (or `NC`) marks a no-chord beat and renders as `N.C.`.
 
 #### Slash Chords (bass note)
 ```
@@ -117,6 +120,14 @@ For a **major key**, degrees and chord qualities use the diatonic major scale sh
   chorus: 4 5 6 1   →  C D Em G
 ```
 
+**Qualities and accidentals:** a quality written after the number replaces the diatonic triad when it names one (`m`, `min`, `dim`, `°`, `ø`, `aug`, `+`, `sus`, `maj`, `M`, `Δ`, `5`, `alt`); otherwise it extends the diatonic triad. A leading `b` or `#` lowers or raises the degree; altered degrees default to major.
+```
+  key G:  6m 2m7 4maj7 5sus4 27 77    →  Em Am7 Cmaj7 Dsus4 Am7 F#m7b5
+  key G:  b7 #4dim b3 b6/1            →  F C#dim Bb Eb/G
+```
+
+Degrees are spelled by scale letter, so the seventh degree of F# major is `E#`, and `4` in Gb major is `Cb`. Double sharps and flats are simplified.
+
 **Nashville Slash Chords:**
 ```
   verse: 1/5 4/1    →  G/D C/G
@@ -128,6 +139,7 @@ The denominator is always rendered as a bass **note**, never as a chord with a q
   verse: (G C) x2 D G    →  G C G C D G
   chorus: (E A)x3        →  E A E A E A
 ```
+The chord summary keeps the written grouping (`(G C) x2 D G`); lyric carets consume the expanded progression.
 
 #### Chord Melody
 Attach melody notes to chords with a hyphen:
@@ -135,6 +147,7 @@ Attach melody notes to chords with a hyphen:
   verse: G-BCD Am-EFG      (named notes)
   verse: 1-123 4-456       (Nashville - transposed)
 ```
+Named bass, treble, and melody notes move with transposition and capo along with the chord root.
 
 ---
 
@@ -167,6 +180,31 @@ Sections:
 - `N` is the number of half steps to shift (positive or negative)
 - Only affects Nashville numbered chords (1-7); named chords pass through unchanged
 - The directive line itself does not appear in the HTML output
+- The shifted key is spelled conventionally (`G` + 1 → `Ab`, `Bb` + 2 → `C`)
+
+### Chord Definition Directive
+
+A section uses the chord definition named by the first word of its name. `<chords NAME>` links it to a different definition, and `<chords none>` gives it none. Importers emit this when two sections of the same kind have different progressions.
+
+```
+  verse: G C D G
+  verse2: Em C G D
+
+Sections:
+  Verse 1:
+    ^Amazing ^grace ...
+  Verse 2:
+    <chords verse2>
+    ^Through many ^dangers ...
+```
+
+### Lyric Lines Ending in a Colon
+
+A line indented deeper than its section header is always lyric content, even when it ends with `:`. Only a line at the header's indentation (or shallower) starts a new section.
+
+### Reserved Names
+
+Section, chord-definition, and arrangement names that collide with JavaScript object internals (`__proto__`, `constructor`, `prototype`, `toString`, `valueOf`, `hasOwnProperty`, …; case-insensitive) produce a `RESERVED_NAME` warning and are ignored.
 
 ### Chord Markers (`^`)
 
@@ -411,6 +449,8 @@ Arrangements:
 | `s2h-meta-tempo` | `<p>` | Tempo display |
 | `s2h-meta-time` | `<p>` | Time signature display |
 | `s2h-meta-authors` | `<p>` | Author(s) display |
+| `s2h-meta-capo` | `<p>` | Capo display, with `s2h-capo-shapes` naming the shape key |
+| `s2h-repeat` | `<span>` | Repeat group in the chord summary, with `s2h-repeat-count` for `xN` |
 | `s2h-chords` | `<section>` | Chord summary container |
 | `s2h-chords-title` | `<h3>` | "Chords" heading |
 | `s2h-chord-line` | `<p>` | Chord progression line |
@@ -443,12 +483,13 @@ See [`AST.md`](AST.md) for the versioned model, structured chord/key representat
 ```javascript
 import songToHtml from 'song2html';
 
-const result = songToHtml(sourceText, arrangementName);
+const result = songToHtml(sourceText, arrangementName, { capo: 2 });
 ```
 
 **Parameters:**
 - `sourceText` (string): The chord chart in the format above
 - `arrangementName` (string, optional): Which arrangement to use
+- `options.capo` (number, optional): Render chord shapes for a capo on this fret (0-11); overrides `capo:` metadata. Named chords move down by the capo and Nashville numbers resolve in the shape key.
 
 **Returns:**
 ```javascript
@@ -462,11 +503,13 @@ const result = songToHtml(sourceText, arrangementName);
     time: string|null,    // Time signature
     authors: string[],    // Array of author names
     owner: string|null,   // Copyright owner
-    license: string|null  // License
+    license: string|null, // License
+    capo: number|null     // Capo fret used for rendering
   },
   errata: [{
     severity: 'error'|'warning'|'info',
-    type: string,
+    code: string,         // Stable code, e.g. 'MISSING_SECTION'
+    type: string,         // Same code in kebab case, e.g. 'missing-section'
     message: string,
     section?: string,
     line?: number
@@ -476,7 +519,9 @@ const result = songToHtml(sourceText, arrangementName);
 
 An `error` means the requested output cannot be rendered reliably. A `warning` means rendering is possible but the source is likely unintended. Consumers should treat a document as valid when it has no error-severity diagnostics; warnings alone do not make it invalid.
 
-For resource safety, the parser rejects sources over 1,000,000 characters or 20,000 lines, more than 1,000 section declarations, arrangements over 5,000 entries, repeats above `x128`, and progressions above 10,000 expanded chords.
+`songToHtml()` is `parseSong()` followed by `renderSongHtml()`; there is a single parser, and errata are its diagnostics plus render-time ones (such as `unknown-arrangement`).
+
+For resource safety (`LIMITS` export), the parser, AST builder, and importers reject sources over 1,000,000 characters or 20,000 lines, more than 1,000 section declarations, arrangements over 5,000 entries, repeats above `x128`, and progressions above 10,000 expanded chords.
 
 ---
 
