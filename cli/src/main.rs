@@ -263,7 +263,19 @@ fn run(cli: Cli) -> Result<bool, String> {
     if inputs.len() > 1 && cli.out_dir.is_none() && !cli.check {
         return Err("several inputs need --out-dir (or --check)".into());
     }
-    if let Some(dir) = &cli.out_dir {
+    let target_for = |dir: &Path, input: &Option<PathBuf>| {
+        let stem = input.as_ref().and_then(|path| path.file_stem()).and_then(|stem| stem.to_str()).unwrap_or("song");
+        dir.join(format!("{stem}.{}", extension(cli.to)))
+    };
+    let label_for = |input: &Option<PathBuf>| input.as_ref().map(|path| path.display().to_string()).unwrap_or_else(|| "<stdin>".into());
+    if let Some(dir) = cli.out_dir.as_deref().filter(|_| !cli.check) {
+        let mut seen = std::collections::HashMap::new();
+        for input in &inputs {
+            let target = target_for(dir, input);
+            if let Some(previous) = seen.insert(target.clone(), label_for(input)) {
+                return Err(format!("{previous} and {} would both write {}", label_for(input), target.display()));
+            }
+        }
         fs::create_dir_all(dir).map_err(|error| format!("{}: {error}", dir.display()))?;
     }
     let engine = Engine::new()?;
@@ -272,7 +284,7 @@ fn run(cli: Cli) -> Result<bool, String> {
     let mut clean = true;
 
     for input in &inputs {
-        let label = input.as_ref().map(|path| path.display().to_string()).unwrap_or_else(|| "<stdin>".into());
+        let label = label_for(input);
         let source = read_input(input.as_deref()).map_err(|error| format!("{label}: {error}"))?;
         let source_name = input.as_ref().and_then(|path| path.file_name()).and_then(|name| name.to_str());
         let response = engine.convert(&Request {
@@ -301,13 +313,16 @@ fn run(cli: Cli) -> Result<bool, String> {
             continue;
         }
         if let Some(dir) = &cli.out_dir {
-            let stem = input.as_ref().and_then(|path| path.file_stem()).and_then(|stem| stem.to_str()).unwrap_or("song");
-            let target = dir.join(format!("{stem}.{}", extension(cli.to)));
+            let target = target_for(dir, input);
             fs::write(&target, &response.output).map_err(|error| format!("{}: {error}", target.display()))?;
         } else if let Some(path) = &cli.output {
             fs::write(path, &response.output).map_err(|error| format!("{}: {error}", path.display()))?;
         } else {
-            io::stdout().write_all(response.output.as_bytes()).map_err(|error| error.to_string())?;
+            match io::stdout().write_all(response.output.as_bytes()) {
+                // A reader that closes early (`song2html song.txt | head`) is not an error.
+                Err(error) if error.kind() == io::ErrorKind::BrokenPipe => break,
+                result => result.map_err(|error| error.to_string())?,
+            }
         }
     }
     Ok(clean || !(cli.check || cli.strict))
